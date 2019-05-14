@@ -3,6 +3,7 @@ $token = "";
 $admin_id = "";
 $lang = "en";
 $lang_strings = null;
+// Localization
 function load_translation($lang_code){
 	global $lang;
 	global $lang_strings;
@@ -14,8 +15,26 @@ function tr($ID){
 	global $lang_strings;
 	if (property_exists($lang_strings, $ID)){return $lang_strings->{$ID};}
 	load_translation("en");
-	return $lang_strings->{$ID};
+	return property_exists($lang_strings, $ID) ? $lang_strings->{$ID} : "";
 }
+// Answers
+function send_message($chat_id, $txt, $keyboard=null){
+	global $token;
+	$chat_id = intval($chat_id);
+	file_get_contents("https://api.telegram.org/bot".$token."/sendMessage?chat_id=".$chat_id."&text=".urlencode($txt).
+						"&parse_mode=HTML".($keyboard ? "&reply_markup=".json_encode($keyboard) : ""));
+}
+function send_photo($chat_id, $file, $caption, $keyboard){
+	global $token;
+	$chat_id = intval($chat_id);
+	file_get_contents("https://api.telegram.org/bot".$token."/sendPhoto?chat_id=".$chat_id."&caption=".urlencode($caption)."&photo=".$file."&reply_markup=".json_encode($keyboard)."&parse_mode=HTML");
+}
+function send_document($chat_id, $file, $caption, $keyboard){
+	global $token;
+	$chat_id = intval($chat_id);
+	file_get_contents("https://api.telegram.org/bot".$token."/sendDocument?chat_id=".$chat_id."&caption=".urlencode($caption)."&document=".$file."&reply_markup=".json_encode($keyboard)."&parse_mode=HTML");
+}
+// DB queries
 function init_db(){
 	$my_db_name = "enema_db.sqlite3";
 	if (!file_exists($my_db_name)){
@@ -37,22 +56,6 @@ function init_db(){
        $db = new SQLite3($my_db_name);
     }
 	return $db;
-}
-function send_message($chat_id, $txt, $keyboard=null){
-	global $token;
-	$chat_id = intval($chat_id);
-	file_get_contents("https://api.telegram.org/bot".$token."/sendMessage?chat_id=".$chat_id."&text=".urlencode($txt).
-						"&parse_mode=HTML".($keyboard ? "&reply_markup=".json_encode($keyboard) : ""));
-}
-function send_photo($chat_id, $file, $caption, $keyboard){
-	global $token;
-	$chat_id = intval($chat_id);
-	file_get_contents("https://api.telegram.org/bot".$token."/sendPhoto?chat_id=".$chat_id."&caption=".urlencode($caption)."&photo=".$file."&reply_markup=".json_encode($keyboard)."&parse_mode=HTML");
-}
-function send_document($chat_id, $file, $caption, $keyboard){
-	global $token;
-	$chat_id = intval($chat_id);
-	file_get_contents("https://api.telegram.org/bot".$token."/sendDocument?chat_id=".$chat_id."&caption=".urlencode($caption)."&document=".$file."&reply_markup=".json_encode($keyboard)."&parse_mode=HTML");
 }
 function add_poll($author, $name, $text, $type, $file, $data){
 	$author = intval($author);
@@ -121,7 +124,7 @@ function edit_poll($author, $id, $text, $type, $file, $data){
 	$db = init_db();
 	$author = intval($author);
 	$id = intval($id);
-	$sql = "SELECT poll_items FROM main_polls WHERE ID=".$id." AND author_id=".$author." AND (state='active' OR state='locked');";
+	$sql = "SELECT poll_items, poll_data FROM main_polls WHERE ID=".$id." AND author_id=".$author." AND (state='active' OR state='locked');";
 	$res = $db->query($sql);
 	if ($res){
 		$res = $res->fetchArray();
@@ -129,11 +132,12 @@ function edit_poll($author, $id, $text, $type, $file, $data){
 			$db->close();
 			return tr("IDNOTFOUND");
 		}
-		$res = $res["poll_items"];
+		$items = $res["poll_items"];
+		$v = $res["poll_data"];
 		if ($data==null){
-			$data = explode("\n", $res);
+			$data = explode("\n", $items);
 		}else{
-			if (count(explode("\n", $res))!=count($data)){
+			if (count(explode("\n", $items))!=count($data) and mb_strlen(trim($v))>0){
 				$db->close();
 				return tr("ITEMCNTNOTMATCH");
 			}
@@ -142,8 +146,9 @@ function edit_poll($author, $id, $text, $type, $file, $data){
 		$db->close();
 		return "Error: EDIT_SELECT_FAIL\n".$db->lastErrorMsg();
 	}
-	$sql = "UPDATE main_polls SET poll_items=:poll_items, text=:text, type=:type, file=:file WHERE ID=".$id;
+	$sql = "UPDATE main_polls SET poll_data=:poll_data, poll_items=:poll_items, text=:text, type=:type, file=:file WHERE ID=".$id;
 	$stmt = $db->prepare($sql);
+	$stmt->bindValue(':poll_data', str_repeat("\n", count($data)-1), SQLITE3_TEXT);
 	$stmt->bindValue(':poll_items', implode("\n", $data), SQLITE3_TEXT);
 	$stmt->bindValue(':text', $text, SQLITE3_TEXT);
 	$stmt->bindValue(':type', $type, SQLITE3_TEXT);
@@ -367,11 +372,75 @@ function get_info($author, $id){
 	$db->close();
 	return $res;
 }
+function set_lock($author, $id, $new_state){
+	$db = init_db();
+	$author = intval($author);
+	$id = intval($id);
+	$sql = "SELECT state FROM main_polls WHERE ID=".$id." AND (state='active' OR state='locked')"." AND author_id=".$author;
+	$res = $db->query($sql);
+	if (!$res){
+		$db->close();
+		return "Error: LOCK_SELECT_FAIL.\n".$db->lastErrorMsg();
+	}
+	$state = "";
+	$row = $res->fetchArray();
+	if ($row){
+		$state = $row["state"];
+	}else{
+		$db->close();
+		return tr("IDNOTFOUND");
+	}
+	if ($state==new_state){
+		$db->close();
+		return tr("INSTATE");
+	}
+	$sql = "UPDATE main_polls SET state='".$new_state."' WHERE ID=".$id;
+	$res = $db->exec($sql) ? tr("STATECHANGED") : "Error: LOCK_UPDATE_FAIL\n".$db->lastErrorMsg();
+	$db->close();
+	return $res;
+}
+function get_stat(){
+	$db = init_db();
+	$sql = "SELECT COUNT(ID) FROM main_polls";
+	$res = $db->query($sql);
+	if (!$res){
+		$db->close();
+		return "Error: STAT_COUNT_FAIL\n".$db->lastErrorMsg();
+	}
+	$cnt = $res->fetchArray()[0];
+	$db->close();
+	$res = "In DB: ".$cnt."\n".file_get_contents("last_poll_datetime.txt");
+	$cnt = count(explode("\n", file_get_contents("users.txt"))) - 1;
+	$res = $res."\nUsers: ".$cnt;
+	$cnt = count(explode("\n", file_get_contents("authors.txt"))) - 1;
+	$res = $res."\nAuthors: ".$cnt;
+	return $res;
+}
+function get_users($file){
+	global $token;
+	$users = array_filter(explode("\n", file_get_contents($file.".txt")));
+	$res = "";
+	foreach($users as $user){
+		$u = file_get_contents("https://api.telegram.org/bot".$token."/getChat?chat_id=".$user);
+		$udata = json_decode($u);
+		$res = $res.$user;
+		if ($udata->{"ok"}==true){
+			$res = $res.": ".$udata->{"result"}->{"first_name"}." ".$udata->{"result"}->{"last_name"};
+			if ($udata->{"result"}->{"username"}){$res = $res." @".$udata->{"result"}->{"username"};}
+		}
+		$res = $res."\n";
+	}
+	return $res;
+}
 function vote($user_id, $id, $item){
 	$db = init_db();
 	$user_id = intval($user_id);
 	$id = intval($id);
 	$item = intval($item);
+	if (!$db->exec("BEGIN TRANSACTION;")){
+		$db->close();
+		return "Error: VOTE_BEGIN_FAIL.\n".$db->lastErrorMsg();
+	}
 	$sql = "SELECT poll_data, state FROM main_polls WHERE ID=".$id." AND (state='active' OR state='locked');";
 	$res = $db->query($sql);
 	if (!$res){
@@ -410,6 +479,10 @@ function vote($user_id, $id, $item){
 		$list[$item]=$list[$item].$user_id.",";
 		$sql = "UPDATE main_polls SET poll_data='".implode("\n", $list)."' WHERE ID=".$id;
 		$res = $db->exec($sql) ? "✅ ".tr("VOTED") : "Error: VOTE_UPDATE_FAIL0\n".$db->lastErrorMsg();
+		if (!$db->exec("COMMIT;")){
+			$db->close();
+			return tr("DBBUSY");
+		}
 		$db->close();
 		return $res;
 	}
@@ -418,53 +491,14 @@ function vote($user_id, $id, $item){
 	$list[$item]=$list[$item].$user_id.",";
 	$sql = "UPDATE main_polls SET poll_data='".implode("\n", $list)."' WHERE ID=".$id;
 	$res = $db->exec($sql) ? "🔄 ".tr("CHANGED") : "Error: VOTE_UPDATE_FAIL1\n".$db->lastErrorMsg();
+	if (!$db->exec("COMMIT;")){
+		$db->close();
+		return tr("DBBUSY");
+	}
 	$db->close();
 	return $res;
 }
-function set_lock($user_id, $id, $new_state){
-	$db = init_db();
-	$user_id = intval($user_id);
-	$id = intval($id);
-	$sql = "SELECT state FROM main_polls WHERE ID=".$id." AND (state='active' OR state='locked');";
-	$res = $db->query($sql);
-	if (!$res){
-		$db->close();
-		return "Error: LOCK_SELECT_FAIL.\n".$db->lastErrorMsg();
-	}
-	$state = "";
-	$row = $res->fetchArray();
-	if ($row){
-		$state = $row["state"];
-	}else{
-		$db->close();
-		return tr("IDNOTFOUND");
-	}
-	if ($state==new_state){
-		$db->close();
-		return tr("INSTATE");
-	}
-	$sql = "UPDATE main_polls SET state='".$new_state."' WHERE ID=".$id;
-	$res = $db->exec($sql) ? tr("STATECHANGED") : "Error: LOCK_UPDATE_FAIL\n".$db->lastErrorMsg();
-	$db->close();
-	return $res;
-}
-function get_stat(){
-	$db = init_db();
-	$sql = "SELECT COUNT(ID) FROM main_polls";
-	$res = $db->query($sql);
-	if (!$res){
-		$db->close();
-		return "Error: STAT_COUNT_FAIL\n".$db->lastErrorMsg();
-	}
-	$cnt = $res->fetchArray()[0];
-	$db->close();
-	$res = "In DB".$cnt."\n".file_get_contents("last_poll_datetime.txt");
-	$cnt = count(explode("\n", file_get_contents("users.txt"))) - 1;
-	$res = $res."\nUsers: ".$cnt;
-	$cnt = count(explode("\n", file_get_contents("authors.txt"))) - 1;
-	$res = $res."\nAuthors: ".$cnt;
-	return $res;
-}
+// Util
 function get_optimal_cols($cnt){
 	if ($cnt<4){return $cnt;}
 	$max_k = 0.0;
@@ -525,6 +559,11 @@ function on_new($chat_id, $from_id, $txt){
 			send_message($chat_id, tr("EMPTYPOLL"));
 		}else{
 			$poll_items = explode("\n", $poll_items);
+			if (count($poll_items)==1 and mb_strpos($poll_items[0], ";")){
+				$bck = $poll_items;
+				$poll_items = array_filter(explode(";", $poll_items[0]));
+				if (count($poll_items)==1){$poll_items = $bck;}
+			}
 			$id = add_poll($from_id, $poll_name, $poll_text, $doc_type, $file_id, $poll_items);
 			if (is_numeric($id)){
 				publish_poll($from_id, $chat_id, $id);
@@ -548,6 +587,11 @@ function on_edit($chat_id, $from_id, $txt){
 		$poll_text = trim(mb_substr($txt, $txtpos + 5, $itemspos - $txtpos - 5));
 		$poll_items = trim(mb_substr($txt, $itemspos + 6));
 		$poll_items = explode("\n", $poll_items);
+		if (count($poll_items)==1 and mb_strpos($poll_items[0], ";")){
+			$bck = $poll_items;
+			$poll_items = array_filter(explode(";", $poll_items[0]));
+			if (count($poll_items)==1){$poll_items = $bck;}
+		}
 	}else if ($txtpos){
 		$poll_id = trim(mb_substr($txt, 5, $txtpos - 5));
 		$poll_text = trim(mb_substr($txt, $txtpos + 5));
@@ -623,8 +667,7 @@ function on_restore($chat_id, $from_id, $txt){
 	$res = is_numeric($id) ? restore_poll($from_id, $id) : tr("INVALIDID");
 	send_message($chat_id, $res);
 }
-function on_lock($chat_id, $from_id, $txt, $state){
-	$id = trim(mb_substr($txt, 5));
+function on_lock($chat_id, $from_id, $id, $state){
 	if (mb_strtolower($id) == "last"){
 		$id = get_last_id($from_id);
 		if (!is_numeric($id)){
@@ -647,16 +690,18 @@ function on_get($chat_id, $from_id, $txt){
 	$res = is_numeric($id) ? get_info($from_id, $id) : tr("INVALIDID");
 	send_message($chat_id, $res);
 }
+// Parser
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$raw_inp = file_get_contents('php://input');
     $data = json_decode($raw_inp);
-	if ($data->{'message'} != null) {
+	if (property_exists($data, 'message') and $data->{'message'} != null) {
 		$chat_id = $data->{'message'}->{'chat'}->{'id'};
 		$from_id = $data->{'message'}->{'from'}->{'id'};
 		load_translation($data->{'message'}->{'from'}->{'language_code'});
-		$txt = $data->{'message'}->{'text'};
-		$caption = $data->{'message'}->{'caption'};
+		$txt = property_exists($data->{'message'}, 'text') ? $data->{'message'}->{'text'} : null;
+		$caption = property_exists($data->{'message'}, 'caption') ? $data->{'message'}->{'caption'} : null;
 		if ($txt == null and $caption != null){$txt = $caption;}
+		$txt = trim($txt);
 		if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/help"){
 			if ($chat_id == $from_id){send_message($chat_id, tr("HELP"));}else{
 				send_message($chat_id, tr("CHAT_HELP"));
@@ -674,17 +719,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/restore" and $chat_id == $from_id){
 			on_restore($chat_id, $from_id, $txt);
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/lock" and $chat_id == $from_id){
-			on_lock($chat_id, $from_id, $txt, "locked");
+			$id = trim(mb_substr($txt, 5));
+			on_lock($chat_id, $from_id, $id, "locked");
 		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/unlock" and $chat_id == $from_id){
-			on_lock($chat_id, $from_id, $txt, "active");
+			$id = trim(mb_substr($txt, 7));
+			on_lock($chat_id, $from_id, $id, "active");
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/list" and $chat_id == $from_id){
 			send_message($chat_id, get_list($from_id));
 		}else if (mb_substr(mb_strtolower($txt), 0, 4 ) == "/get"){
 			on_get($chat_id, $from_id, $txt);
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/stat" and $chat_id == $from_id and $from_id==$admin_id){
 			send_message($chat_id, get_stat());
+		}else if (mb_substr(mb_strtolower($txt), 0, 6 ) == "/users" and $chat_id == $from_id and $from_id==$admin_id){
+			send_message($chat_id, get_users("users"));
+		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/authors" and $chat_id == $from_id and $from_id==$admin_id){
+			send_message($chat_id, get_users("authors"));
 		}
-	}else if ($data->{'callback_query'} != null){
+	}else if (property_exists($data, 'callback_query') and $data->{'callback_query'} != null){
 		$query_id = $data->{"callback_query"}->{"id"};
 		$vote_data = $data->{"callback_query"}->{"data"};
 		$lst = explode(":", $vote_data, $limit = 2);
@@ -692,7 +743,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		load_translation($data->{'callback_query'}->{'from'}->{'language_code'});
 		$vote_answer = count($lst)==2 ? vote($user_id, $lst[0], $lst[1]) : tr("INVALIDBTNDATA");
 		file_get_contents("https://api.telegram.org/bot".$token."/answerCallbackQuery?callback_query_id=".$query_id."&text=".urlencode($vote_answer));
-	}else if ($data->{'channel_post'} != null){
+	}else if (property_exists($data, 'channel_post') and $data->{'channel_post'} != null){
 		$chat_id = $data->{'channel_post'}->{'chat'}->{'id'};
 		$txt = $data->{'channel_post'}->{'text'};
 		if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/publish"){
