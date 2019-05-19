@@ -1,0 +1,25 @@
+This is a bot for pollings.
+<a href="https://telegra.ph/Enema-bot-RU-05-18">Full help</a>
+
+Just list of commands:
+1️⃣  Create a new poll
+/new /text /items
+2️⃣  Edit an existing poll by ID
+/edit /text /items
+3️⃣  Publish poll in current chat
+/publish 123456
+4️⃣  Lock/unlock a poll by id
+/lock 123456
+/unlock 123456
+5️⃣  Delete a poll by id
+/delete 123456
+6️⃣  Restore poll
+/restore 123456
+7️⃣  Get the polling results with the specified id
+/get 123456
+8️⃣  Get a list of polls
+/list
+9️⃣  Send an anonymous text message to the developer
+/feedback Text
+
+The bot is still under development.

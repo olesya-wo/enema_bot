@@ -1,6 +1,4 @@
 {
-"CHAT_HELP": "This is a bot for pollings.\nSupport text with HTML tags, photo, video and documents.\n\nIn group/channel you can:\n\n1️⃣  Publish poll in current group\n/publish 123456\n\n2️⃣  Get the polling results with the specified id\n/get 123456",
-"HELP": "This is a bot for pollings.\nSupport text with HTML tags, photo, video and documents.\n\nYou can:\n\n1️⃣  Create a new poll\n/new\nPoll name (Displayed only for the author).\n/text\nPoll text.\n/items (Can be separated by ; )\nitem_1\nitem_2\n...\nitem_N\n\n2️⃣  Edit an existing poll by ID\n/edit 123456\n/text\nNew text.\n/items (Optional)\nnew_item_1\nnew_item_2\n...\nnew_item_N\n\n3️⃣  Publish poll in current chat\n/publish 123456\n\n4️⃣  Lock/unlock a poll by id\n/lock 123456\n/unlock 123456\n\n5️⃣  Delete a poll by id\n/delete 123456\n\n6️⃣  Restore poll\n/restore 123456\n\n7️⃣  Get the polling results with the specified id\n/get 123456\n\n8️⃣  Get a list of polls\n/list\n\nInstead of ID, you can use the word 'last'",
 "MAX10": "A maximum 10 active polls are available.",
 "MAX100": "A maximum 100 deleted polls are available.\nPlease wait - they will be cleaned in about a day.",
 "IDNOTFOUND": "ID not found.",
@@ -20,12 +18,12 @@
 "INVALIDFORMAT": "Invalid format.",
 "INVALIDID": "Invalid ID.",
 "INVALIDBTNDATA": "Invalid button data.",
-"SHARE0": "Now you can click on http://t.me/enema_bot?startgroup=ID",
-"SHARE1": " and select group for publish poll\nOr manually type\n/publish ",
-"SHARE2": "\nin chat/group/channel.",
+"SHARE": "Now you can click on http://t.me/enema_bot?startgroup=ID%d and select group for publish poll,\nor manually type\n/publish %d\nin chat/group/channel,\nor use inline mode.",
 "ALREADYDELETED": "Already deleted.",
 "NOTDELETED": "Poll not deleted.",
 "RESTORED": "Poll restored.",
 "LASTIDERROR": "Can't found your last id.",
-"DBBUSY": "❗️ DB is busy, try again."
+"DBBUSY": "❗️ DB is busy, try again.",
+"FEEDBACKOK": "Your message has been sent.",
+"FEEDBACKERROR": "Need some text."
 }
