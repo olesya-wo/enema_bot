@@ -14,6 +14,7 @@
 "INSTATE": "Already in this state.",
 "STATECHANGED": "Changed.",
 "EMPTYPOLL": "The poll does not contain text or media.",
+"DONATE": "I'm just a piece of code, but my creator needs to eat.\nPlease <a href=\"https://money.yandex.ru/to/410012996263939\">donate</a> some money to her.",
 "NEWERROR": "/new, /text and /items must be in a SINGLE MESSAGE.",
 "INVALIDFORMAT": "Invalid format.",
 "INVALIDID": "Invalid ID.",
@@ -25,5 +26,6 @@
 "LASTIDERROR": "Can't found your last id.",
 "DBBUSY": "❗️ DB is busy, try again.",
 "FEEDBACKOK": "Your message has been sent.",
-"FEEDBACKERROR": "Need some text."
+"FEEDBACKERROR": "Need some text.",
+"GROUPNOTSUPPORT": "Media groups are not supported."
 }

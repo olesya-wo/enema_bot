@@ -37,23 +37,28 @@ function call_api_method($method, $params){
 	);
 	return file_get_contents("https://api.telegram.org/bot".$token."/".$method, false, stream_context_create($opts));
 }
+function answer_by_method($method, $params){
+	$params["method"] = $method;
+	header("Content-Type: application/json");
+	echo json_encode($params);
+}
 // DB queries
 function init_db(){
 	$my_db_name = "enema_db.sqlite3";
 	if (!file_exists($my_db_name)){
         $db = new SQLite3($my_db_name);
-        $sql="CREATE TABLE `main_polls` (
-											ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-											author_id INTEGER NOT NULL,
-											datetime TEXT,
-											name TEXT,
-											poll_items TEXT,
-											poll_data TEXT,
-											text TEXT,
-											type TEXT,
-											file TEXT,
-											state TEXT DEFAULT 'active'
-										);";
+        $sql="CREATE TABLE `main_polls`(ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+										author_id INTEGER NOT NULL,
+										datetime TEXT,
+										name TEXT,
+										poll_items TEXT,
+										poll_data TEXT,
+										text TEXT,
+										type TEXT,
+										file TEXT,
+										state TEXT DEFAULT 'active',
+										public INTEGER DEFAULT 0
+									);";
         $db->query($sql);
     }else{
        $db = new SQLite3($my_db_name);
@@ -61,7 +66,7 @@ function init_db(){
 	$db->busyTimeout(10000);
 	return $db;
 }
-function add_poll($author, $name, $text, $type, $file, $data){
+function add_poll($author, $name, $text, $type, $file, $poll_items){
 	$author = intval($author);
 	$db = init_db();
 	$sql = "SELECT COUNT(ID) FROM main_polls WHERE author_id=".$author." AND (state='active' OR state='locked');";
@@ -91,13 +96,13 @@ function add_poll($author, $name, $text, $type, $file, $data){
 	$id = 0;
 	$sql = "INSERT INTO main_polls (author_id, datetime, name, poll_items, poll_data, text, type, file, state) 
 						VALUES (:author_id, :datetime, :name, :poll_items, :poll_data, :text, :type, :file, :state);";
-	$dt = date("Y-m-d H:i:s");
+	$dt = date("Y-m-d");
 	$stmt = $db->prepare($sql);
 	$stmt->bindValue(':author_id', $author, SQLITE3_INTEGER);
 	$stmt->bindValue(':datetime', $dt, SQLITE3_TEXT);
 	$stmt->bindValue(':name', $name, SQLITE3_TEXT);
-	$stmt->bindValue(':poll_items', implode("\n", $data), SQLITE3_TEXT);
-	$stmt->bindValue(':poll_data', str_repeat("\n", count($data)-1), SQLITE3_TEXT);
+	$stmt->bindValue(':poll_items', implode("\n", $poll_items), SQLITE3_TEXT);
+	$stmt->bindValue(':poll_data', str_repeat("\n", count($poll_items)-1), SQLITE3_TEXT);
 	$stmt->bindValue(':text', $text, SQLITE3_TEXT);
 	$stmt->bindValue(':type', $type, SQLITE3_TEXT);
 	$stmt->bindValue(':file', $file, SQLITE3_TEXT);
@@ -180,15 +185,16 @@ function publish_poll($author, $chat_id, $id){
 	$author = intval($author);
 	$chat_id = intval($chat_id);
 	$id = intval($id);
-	$sql = "SELECT author_id, poll_items, text, type, file FROM main_polls WHERE ID=".$id." AND (state='active' OR state='locked');";
+	$sql = "SELECT * FROM main_polls WHERE ID=".$id." AND (state='active' OR state='locked');";
 	$res = $db->query($sql);
 	if (!$res){
 		$db->close();
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>"Error: PUBLISH_SELECT_FAIL.\n".$db->lastErrorMsg()));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>"Error: PUBLISH_SELECT_FAIL.\n".$db->lastErrorMsg()));
 		return;
 	}
 	$db_author = 0;
 	$items = "";
+	$data = "";
 	$poll_text = "";
 	$type = "";
 	$file_id = "";
@@ -196,21 +202,22 @@ function publish_poll($author, $chat_id, $id){
 	if ($row){
 		$db_author = $row["author_id"];
 		$items = $row["poll_items"];
+		$data = $row["poll_data"];
 		$poll_text = $row["text"];
 		$type = $row["type"];
 		$file_id = $row["file"];
 	}
 	if ($db_author==0){
 		$db->close();
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("IDNOTFOUND")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("IDNOTFOUND")));
 		return;
 	}
 	if ($db_author!=$author and $author!=null){
 		$db->close();
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("NOTAUTHOR")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("NOTAUTHOR")));
 		return;
 	}
-	$keyboard=build_keyboard($id, $items);
+	$keyboard=build_keyboard($id, $items, $row["public"]==1 ? $data : null);
 	if ($type == "photo"){
 		call_api_method("sendPhoto", array("chat_id"=>$chat_id, "caption"=>$poll_text, "photo"=>$file_id, "reply_markup"=>json_encode($keyboard), "parse_mode"=>"HTML"));
 	}else if ($type == "document"){
@@ -313,13 +320,13 @@ function get_list($author){
 function get_list_inline($author){
 	$db = init_db();
 	$author = intval($author);
-	$sql = "SELECT ID, name, poll_items, text, type, file FROM main_polls WHERE author_id=".$author." AND state='active'";
+	$sql = "SELECT * FROM main_polls WHERE author_id=".$author." AND state='active'";
 	$res = $db->query($sql);
 	$list = array();
 	if ($res){
 		$cnt = 0;
 		while ($row = $res->fetchArray()){
-			$keyboard = build_keyboard($row["ID"], $row["poll_items"]);
+			$keyboard = build_keyboard($row["ID"], $row["poll_items"], $row["public"]==1 ? $row["poll_data"] : null);
 			if ($row["type"]=="photo"){
 				array_push($list, array("type"=>"photo", "id"=>strval($cnt), "title"=>$row["name"],
 										"photo_file_id"=>$row["file"], "caption"=>$row["text"], "parse_mode"=>"HTML", "reply_markup"=>$keyboard, "description"=>$row["text"]));
@@ -415,12 +422,39 @@ function set_lock($author, $id, $new_state){
 		$db->close();
 		return tr("IDNOTFOUND");
 	}
-	if ($state==new_state){
+	if ($state==$new_state){
 		$db->close();
 		return tr("INSTATE");
 	}
 	$sql = "UPDATE main_polls SET state='".$new_state."' WHERE ID=".$id;
 	$res = $db->exec($sql) ? tr("STATECHANGED") : "Error: LOCK_UPDATE_FAIL\n".$db->lastErrorMsg();
+	$db->close();
+	return $res;
+}
+function set_public($author, $id, $new_state){
+	$db = init_db();
+	$author = intval($author);
+	$id = intval($id);
+	$sql = "SELECT public FROM main_polls WHERE ID=".$id." AND author_id=".$author;
+	$res = $db->query($sql);
+	if (!$res){
+		$db->close();
+		return "Error: PUBLIC_SELECT_FAIL.\n".$db->lastErrorMsg();
+	}
+	$state = "";
+	$row = $res->fetchArray();
+	if ($row){
+		$state = $row["public"];
+	}else{
+		$db->close();
+		return tr("IDNOTFOUND");
+	}
+	if ($state==$new_state){
+		$db->close();
+		return tr("INSTATE");
+	}
+	$sql = "UPDATE main_polls SET public=".$new_state." WHERE ID=".$id;
+	$res = $db->exec($sql) ? tr("STATECHANGED") : "Error: PUBLIC_UPDATE_FAIL\n".$db->lastErrorMsg();
 	$db->close();
 	return $res;
 }
@@ -448,12 +482,17 @@ function get_users($file){
 	foreach($users as $user){
 		$u = call_api_method("getChat", array("chat_id"=>$user));
 		$udata = json_decode($u);
-		$res = $res.$user;
+		$username = "";
 		if ($udata->{"ok"}==true){
-			$res = $res.": ".$udata->{"result"}->{"first_name"}." ".$udata->{"result"}->{"last_name"};
-			if ($udata->{"result"}->{"username"}){$res = $res." @".$udata->{"result"}->{"username"};}
+			$username = $udata->{"result"}->{"first_name"}." ";
+			if (property_exists($udata->{"result"}, "last_name")){
+				$username = $username.$udata->{"result"}->{"last_name"};
+			}
+			if (mb_strlen($username)<2){$username = $user;}
+		}else{
+			$username = $user;
 		}
-		$res = $res."\n";
+		$res = $res."<a href=\"tg://user?id=".$user."\">".$username."</a>\n";
 	}
 	return $res;
 }
@@ -524,11 +563,15 @@ function vote($user_id, $id, $item){
 	return $res;
 }
 // Util
-function get_optimal_cols($cnt){
-	if ($cnt<4){return $cnt;}
+function get_optimal_cols($cnt, $max_len){
+	if ($max_len>12){return 1;}
+	$cols = intval(round(25/$max_len));
+	if ($cols>8){$cols=8;}
+	if ($cnt<=$cols){return $cols;}
 	$max_k = 0.0;
 	$max_n = 0;
-	for ($i = 2; $i < 6; $i++){
+	// cols - [2,8]
+	for ($i = 2; $i<=$cols; $i++){
 		$k = $cnt%$i;
 		if ($k==0){
 			$max_k = 1.0;
@@ -543,15 +586,37 @@ function get_optimal_cols($cnt){
 	}
 	return $max_n;
 }
-function build_keyboard($id, $poll_items){
+function build_keyboard($id, $poll_items, $poll_data){
+	// Build first array
 	$poll_items = explode("\n", $poll_items);
+	// Build second array
+	$score = null;
+	$applen = 0;
+	if ($poll_data){
+		$applen = 4;
+		$score = explode("\n", $poll_data);
+		for ($i=0; $i<count($score); $i++){
+			$t = count(explode(",", $score[$i]))-1;
+			$score[$i]=$t>0 ? " [".$t."]" : "";
+		}
+	}else{
+		$score = $poll_items;
+		for ($i=0; $i<count($score); $i++){$score[$i]="";}
+	}
+	// Get max item length
+	$max_len = 0;
+	for ($i=0; $i<count($poll_items); $i++){
+		$len = mb_strlen($poll_items[$i])+$applen;
+		if ($len>$max_len){$max_len=$len;}
+	}
+	//
 	$cnt = 0;
-	$optimal_cnt = get_optimal_cols(count($poll_items));
+	$optimal_cnt = get_optimal_cols(count($poll_items), $max_len);
 	$inline_keyboard=array();
 	$keyboard_row=array();
 	foreach($poll_items as $item){
 		$item = trim($item);
-		$btn = array("text"=>$item,"callback_data"=>$id.':'.$cnt);
+		$btn = array("text"=>$item.$score[$cnt],"callback_data"=>$id.':'.$cnt);
 		$cnt += 1;
 		array_push($keyboard_row, $btn);
 		if ($cnt%$optimal_cnt == 0){
@@ -572,7 +637,7 @@ function on_help($chat_id){
 	}else{
 		$help = file_get_contents($help_file."en.txt");
 	}
-	call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$help, "disable_web_page_preview"=>true));
+	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$help, "disable_web_page_preview"=>true, "parse_mode"=>"HTML"));
 }
 function on_start($chat_id, $from_id, $txt){
 	if ($chat_id == $from_id){
@@ -611,7 +676,7 @@ function on_new($chat_id, $from_id, $txt, $data){
 			$doc_type = "document";
 		}
 		if ($doc_type == "text" and mb_strlen($poll_text)<1){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("EMPTYPOLL")));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("EMPTYPOLL")));
 		}else{
 			$poll_items = explode("\n", $poll_items);
 			if (count($poll_items)==1 and mb_strpos($poll_items[0], ";")){
@@ -623,15 +688,16 @@ function on_new($chat_id, $from_id, $txt, $data){
 			if (is_numeric($id)){
 				publish_poll($from_id, $chat_id, $id);
 				call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>sprintf(tr("SHARE"), $id, $id), "disable_web_page_preview"=>true));
+				answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("DONATE"), "disable_web_page_preview"=>true, "parse_mode"=>"HTML"));
 			}else{
-				call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+				answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			}
 		}
 	}else{
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("NEWERROR")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("NEWERROR")));
 	}
 }
-function on_edit($chat_id, $from_id, $txt){
+function on_edit($chat_id, $from_id, $txt, $data){
 	$txtpos = mb_strpos(mb_strtolower($txt), "/text");
 	$itemspos = mb_strpos(mb_strtolower($txt), "/items");
 	$poll_id = "";
@@ -652,33 +718,33 @@ function on_edit($chat_id, $from_id, $txt){
 		$poll_text = trim(mb_substr($txt, $txtpos + 5));
 	}
 	if (mb_strlen($poll_id)<1){
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDFORMAT")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDFORMAT")));
 		return;
 	}
 	$doc_type = "text";
 	$file_id = "";
-	if ($data->{'message'}->{'photo'} != null){
+	if (property_exists($data->{'message'}, 'photo')){
 		$file_id = $data->{'message'}->{'photo'}[count($data->{'message'}->{'photo'})-1]->{'file_id'};
 		$doc_type = "photo";
 	}
-	if ($data->{'message'}->{'document'} != null){
+	if (property_exists($data->{'message'}, 'document')){
 		$file_id = $data->{'message'}->{'document'}->{'file_id'};
 		$doc_type = "document";
 	}
 	if ($doc_type == "text" and mb_strlen($poll_text)<1){
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("EMPTYPOLL")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("EMPTYPOLL")));
 		return;
 	}
 	if (mb_strtolower($poll_id) == "last"){
 		$poll_id = get_last_id($from_id);
 		if (!is_numeric($poll_id)){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$poll_id));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$poll_id));
 			return;
 		}
 	}
 	$res = edit_poll($from_id, $poll_id, $poll_text, $doc_type, $file_id, $poll_items);
 	if ($res!="OK"){
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 	}else{
 		publish_poll($from_id, $chat_id, $poll_id);
 	}
@@ -688,14 +754,14 @@ function on_publish($chat_id, $from_id, $txt){
 	if (mb_strtolower($id) == "last"){
 		$id = get_last_id($from_id);
 		if (!is_numeric($id)){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
 	if (is_numeric($id)){
 		publish_poll($from_id, $chat_id, $id);
 	}else{
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDID")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDID")));
 	}
 }
 function on_delete($chat_id, $from_id, $txt){
@@ -703,47 +769,58 @@ function on_delete($chat_id, $from_id, $txt){
 	if (mb_strtolower($id) == "last"){
 		$id = get_last_id($from_id);
 		if (!is_numeric($id)){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
 	$res = is_numeric($id) ? delete_poll($from_id, $id) : tr("INVALIDID");
-	call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
+	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
 function on_restore($chat_id, $from_id, $txt){
 	$id = trim(mb_substr($txt, 8));
 	if (mb_strtolower($id) == "last"){
 		$id = get_last_id($from_id);
 		if (!is_numeric($id)){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
 	$res = is_numeric($id) ? restore_poll($from_id, $id) : tr("INVALIDID");
-	call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
+	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
 function on_lock($chat_id, $from_id, $id, $state){
 	if (mb_strtolower($id) == "last"){
 		$id = get_last_id($from_id);
 		if (!is_numeric($id)){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
 	$res = is_numeric($id) ? set_lock($from_id, $id, $state) : tr("INVALIDID");
-	call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
+	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
+}
+function on_public($chat_id, $from_id, $id, $state){
+	if (mb_strtolower($id) == "last"){
+		$id = get_last_id($from_id);
+		if (!is_numeric($id)){
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			return;
+		}
+	}
+	$res = is_numeric($id) ? set_public($from_id, $id, $state) : tr("INVALIDID");
+	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
 function on_get($chat_id, $from_id, $txt){
 	$id = trim(mb_substr($txt, 4));
 	if (mb_strtolower($id) == "last"){
 		$id = get_last_id($from_id);
 		if (!is_numeric($id)){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
 	$res = is_numeric($id) ? get_info($from_id, $id) : tr("INVALIDID");
-	call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
+	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
 function on_feedback($chat_id, $from_id, $txt, $data){
 	global $admin_id;
@@ -759,12 +836,37 @@ function on_feedback($chat_id, $from_id, $txt, $data){
 		}else{
 			call_api_method("sendMessage", array("chat_id"=>$admin_id, "text"=>"#feedback\n".$txt, "parse_mode"=>"HTML"));
 		}
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("FEEDBACKOK")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("FEEDBACKOK")));
 	}else{
-		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("FEEDBACKERROR")));
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("FEEDBACKERROR")));
 	}
 }
+//
+function on_callback($query_id, $user_id, $btn_data, $chat_id, $message_id, $inline){
+	// vote
+	$lst = explode(":", $btn_data, $limit = 2);
+	$vote_answer = count($lst)==2 ? vote($user_id, $lst[0], $lst[1]) : tr("INVALIDBTNDATA");
+	answer_by_method("answerCallbackQuery", array("callback_query_id"=>$query_id, "text"=>$vote_answer));
+	// update keyboard
+	$poll_id = intval($lst[0]);
+	$db = init_db();
+	$sql = "SELECT poll_items, poll_data, public FROM main_polls WHERE ID=".$poll_id;
+	$res = $db->query($sql);
+	if ($res){
+		$row = $res->fetchArray();
+		if ($row){
+			$keyboard = build_keyboard($poll_id, $row["poll_items"], $row["public"]==1 ? $row["poll_data"] : null);
+			if ($inline){
+				call_api_method("editMessageReplyMarkup", array("inline_message_id"=>$message_id, "reply_markup"=>json_encode($keyboard)));
+			}else{
+				call_api_method("editMessageReplyMarkup", array("chat_id"=>$chat_id, "message_id"=>$message_id, "reply_markup"=>json_encode($keyboard)));
+			}
+		}
+	}
+	$db->close();
+}
 // Parser
+date_default_timezone_set('Europe/Moscow');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$raw_inp = file_get_contents('php://input');
     $data = json_decode($raw_inp);
@@ -776,7 +878,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$caption = property_exists($data->{'message'}, 'caption') ? $data->{'message'}->{'caption'} : null;
 		if ($txt == null and $caption != null){$txt = $caption;}
 		$txt = trim($txt);
-		if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/help"){
+		if (property_exists($data->{'message'}, 'media_group_id') and $txt!=null){
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("GROUPNOTSUPPORT")));
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/help"){
 			on_help($chat_id);
 		}else if (mb_substr(mb_strtolower($txt), 0, 6 ) == "/start"){
 			on_start($chat_id, $from_id, $txt);
@@ -785,7 +889,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}else if (mb_substr(mb_strtolower($txt), 0, 4 ) == "/new" and $chat_id == $from_id){
 			on_new($chat_id, $from_id, $txt, $data);
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/edit" and $chat_id == $from_id){
-			on_edit($chat_id, $from_id, $txt);
+			on_edit($chat_id, $from_id, $txt, $data);
 		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/publish"){
 			on_publish($chat_id, $from_id, $txt);
 		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/delete" and $chat_id == $from_id){
@@ -798,31 +902,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/unlock" and $chat_id == $from_id){
 			$id = trim(mb_substr($txt, 7));
 			on_lock($chat_id, $from_id, $id, "active");
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/show" and $chat_id == $from_id){
+			$id = trim(mb_substr($txt, 5));
+			on_public($chat_id, $from_id, $id, 1);
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/hide" and $chat_id == $from_id){
+			$id = trim(mb_substr($txt, 5));
+			on_public($chat_id, $from_id, $id, 0);
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/list" and $chat_id == $from_id){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_list($from_id)));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_list($from_id)));
 		}else if (mb_substr(mb_strtolower($txt), 0, 4 ) == "/get"){
 			on_get($chat_id, $from_id, $txt);
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/stat" and $chat_id == $from_id and $from_id==$admin_id){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_stat()));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_stat()));
 		}else if (mb_substr(mb_strtolower($txt), 0, 6 ) == "/users" and $chat_id == $from_id and $from_id==$admin_id){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_users("users")));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_users("users"), "parse_mode"=>"HTML"));
 		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/authors" and $chat_id == $from_id and $from_id==$admin_id){
-			call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_users("authors")));
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_users("authors"), "parse_mode"=>"HTML"));
 		}
 	}else if (property_exists($data, 'callback_query') and isset($data->{'callback_query'})){
 		$query_id = $data->{"callback_query"}->{"id"};
-		$vote_data = $data->{"callback_query"}->{"data"};
-		$lst = explode(":", $vote_data, $limit = 2);
 		$user_id = $data->{"callback_query"}->{"from"}->{"id"};
+		$btn_data = $data->{"callback_query"}->{"data"};
 		load_translation($data->{'callback_query'}->{'from'}->{'language_code'});
-		$vote_answer = count($lst)==2 ? vote($user_id, $lst[0], $lst[1]) : tr("INVALIDBTNDATA");
-		call_api_method("answerCallbackQuery", array("callback_query_id"=>$query_id, "text"=>$vote_answer));
+		$inline = false;
+		$chat_id = 0;
+		if (property_exists($data->{"callback_query"}, 'inline_message_id')){
+			$message_id = $data->{"callback_query"}->{"inline_message_id"};
+			$inline = true;
+		}else{
+			$chat_id = $data->{"callback_query"}->{"message"}->{"chat"}->{"id"};
+			$message_id = $data->{"callback_query"}->{"message"}->{"message_id"};
+		}
+		on_callback($query_id, $user_id, $btn_data, $chat_id, $message_id, $inline);
 	}else if (property_exists($data, 'channel_post') and isset($data->{'channel_post'})){
 		$chat_id = $data->{'channel_post'}->{'chat'}->{'id'};
 		$txt = $data->{'channel_post'}->{'text'};
 		if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/publish"){
 			$id = trim(mb_substr($txt, 8));
-			if (is_numeric($id)){publish_poll(null, $chat_id, $id);}else{call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDID")));}
+			if (is_numeric($id)){publish_poll(null, $chat_id, $id);}else{answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDID")));}
 		}
 	}else if (property_exists($data, 'inline_query') and isset($data->{'inline_query'})){
 		$query_id = $data->{"inline_query"}->{"id"};
@@ -830,12 +947,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		load_translation($data->{'inline_query'}->{'from'}->{'language_code'});
 		$polls = get_list_inline($user_id);
 		if (count($polls)==0){
-			call_api_method("answerInlineQuery", array("inline_query_id"=>$query_id, "results"=>"[]", "cache_time"=>"10", "is_personal"=>true,
+			answer_by_method("answerInlineQuery", array("inline_query_id"=>$query_id, "results"=>"[]", "cache_time"=>"10", "is_personal"=>true,
 							"switch_pm_text"=>tr("EMPTYLIST"), "switch_pm_parameter"=>"ID"));
 		}else{
-			call_api_method("answerInlineQuery", array("inline_query_id"=>$query_id, "results"=>json_encode($polls), "cache_time"=>"10", "is_personal"=>true));
+			answer_by_method("answerInlineQuery", array("inline_query_id"=>$query_id, "results"=>json_encode($polls), "cache_time"=>"10", "is_personal"=>true));
 		}
 	}
 }else{
-	echo("<h1>Enema bot</h1><br>Author: @lapka_td");
+	echo("<h1>Enema bot</h1><img src=\"enema.png\"><br>Author: @lapka_td<br><br>");
+	echo date("Y-m-d H:i:s");
 }
