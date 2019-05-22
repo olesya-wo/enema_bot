@@ -60,6 +60,11 @@ function init_db(){
 										public INTEGER DEFAULT 0
 									);";
         $db->query($sql);
+		$sql="CREATE TABLE `stack`(author_id INTEGER NOT NULL PRIMARY KEY UNIQUE,
+									type TEXT,
+									file TEXT DEFAULT ''
+								);";
+        $db->query($sql);
     }else{
        $db = new SQLite3($my_db_name);
     }
@@ -109,7 +114,7 @@ function add_poll($author, $name, $text, $type, $file, $poll_items){
 	$stmt->bindValue(':state', "active", SQLITE3_TEXT);
 	$res = $stmt->execute();
 	if ($res){
-		$sql = "SELECT ID FROM main_polls WHERE author_id=".$author." AND datetime='".$dt."';";
+		$sql = "SELECT ID FROM main_polls WHERE author_id=".$author." ORDER BY ID DESC LIMIT 1;";
 		$res = $db->query($sql);
 		$id = 0;
 		if ($res != false){
@@ -190,7 +195,7 @@ function publish_poll($author, $chat_id, $id){
 	if (!$res){
 		$db->close();
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>"Error: PUBLISH_SELECT_FAIL.\n".$db->lastErrorMsg()));
-		return;
+		return "error";
 	}
 	$db_author = 0;
 	$items = "";
@@ -210,22 +215,41 @@ function publish_poll($author, $chat_id, $id){
 	if ($db_author==0){
 		$db->close();
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("IDNOTFOUND")));
-		return;
+		return "error";
 	}
 	if ($db_author!=$author and $author!=null){
 		$db->close();
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("NOTAUTHOR")));
-		return;
+		return "error";
 	}
 	$keyboard=build_keyboard($id, $items, $row["public"]==1 ? $data : null);
 	if ($type == "photo"){
 		call_api_method("sendPhoto", array("chat_id"=>$chat_id, "caption"=>$poll_text, "photo"=>$file_id, "reply_markup"=>json_encode($keyboard), "parse_mode"=>"HTML"));
 	}else if ($type == "document"){
 		call_api_method("sendDocument", array("chat_id"=>$chat_id, "caption"=>$poll_text, "document"=>$file_id, "reply_markup"=>json_encode($keyboard), "parse_mode"=>"HTML"));
+	}else if ($type == "audio"){
+		call_api_method("sendAudio", array("chat_id"=>$chat_id, "caption"=>$poll_text, "audio"=>$file_id, "reply_markup"=>json_encode($keyboard), "parse_mode"=>"HTML"));
+	}else if ($type == "voice"){
+		call_api_method("sendVoice", array("chat_id"=>$chat_id, "caption"=>$poll_text, "voice"=>$file_id, "reply_markup"=>json_encode($keyboard), "parse_mode"=>"HTML"));
+	}else if ($type == "sticker"){
+		call_api_method("sendSticker", array("chat_id"=>$chat_id, "sticker"=>$file_id, "reply_markup"=>json_encode($keyboard)));
+	}else if ($type == "video_note"){
+		call_api_method("sendVideoNote", array("chat_id"=>$chat_id, "video_note"=>$file_id, "reply_markup"=>json_encode($keyboard)));
+	}else if ($type == "venue"){
+		$args = json_decode($file_id);
+		call_api_method("sendVenue", array("chat_id"=>$chat_id, "latitude"=>$args->{'location'}->{'latitude'}, "longitude"=>$args->{'location'}->{'latitude'},
+											"title"=>$poll_text, "address"=>$args->{'address'}, "reply_markup"=>json_encode($keyboard)));
+	}else if ($type == "location"){
+		$args = json_decode($file_id);
+		call_api_method("sendLocation", array("chat_id"=>$chat_id, "latitude"=>$args->{'latitude'}, "longitude"=>$args->{'longitude'}, "reply_markup"=>json_encode($keyboard)));
+	}else if ($type == "contact"){
+		$args = json_decode($file_id);
+		call_api_method("sendContact", array("chat_id"=>$chat_id, "phone_number"=>$args->{'phone_number'}, "first_name"=>$args->{'first_name'}, "reply_markup"=>json_encode($keyboard)));
 	}else{
 		call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$poll_text, "reply_markup"=>json_encode($keyboard), "parse_mode"=>"HTML"));
 	}
 	$db->close();
+	return "OK";
 }
 function delete_poll($author, $id){
 	$db = init_db();
@@ -296,6 +320,9 @@ function get_list($author){
 	if ($res){
 		$cnt = 0;
 		while ($row = $res->fetchArray()) {
+			if ($row["public"]==1){
+				$list = $list."📊";
+			}
 			if ($row["state"]=="locked"){
 				$list = $list."🔐 ";
 			}
@@ -305,7 +332,7 @@ function get_list($author){
 			if ($row["state"]=="clean"){
 				$list = $list."❌♻️ ";
 			}
-			$list = $list.$row["name"].":\n".$row["datetime"]."\nID: ".$row["ID"]."\n\n";
+			$list = $list.$row["name"].":\n".$row["datetime"]." ID: ".$row["ID"]."\n\n";
 			$cnt += 1;
 		}
 		if ($cnt==0){
@@ -333,6 +360,26 @@ function get_list_inline($author){
 			}else if ($row["type"]=="document"){
 				array_push($list, array("type"=>"document", "id"=>strval($cnt), "title"=>$row["name"],
 										"document_file_id"=>$row["file"], "caption"=>$row["text"], "parse_mode"=>"HTML", "reply_markup"=>$keyboard, "description"=>$row["text"]));
+			}else if ($row["type"]=="audio"){
+				array_push($list, array("type"=>"audio", "id"=>strval($cnt), "audio_file_id"=>$row["file"], "caption"=>$row["text"], "parse_mode"=>"HTML", "reply_markup"=>$keyboard));
+			}else if ($row["type"]=="voice"){
+				array_push($list, array("type"=>"voice", "id"=>strval($cnt), "title"=>$row["name"],
+										"voice_file_id"=>$row["file"], "caption"=>$row["text"], "parse_mode"=>"HTML", "reply_markup"=>$keyboard, "description"=>$row["text"]));
+			}else if ($row["type"]=="sticker"){
+				array_push($list, array("type"=>"sticker", "id"=>strval($cnt), "sticker_file_id"=>$row["file"], "reply_markup"=>$keyboard));
+			}else if ($row["type"]=="location"){
+				$args = json_decode($row["file"]);
+				array_push($list, array("type"=>"location", "id"=>strval($cnt), "title"=>$row["name"],
+										"latitude"=>$args->{'latitude'}, "longitude"=>$args->{'longitude'}, "reply_markup"=>$keyboard));
+			}else if ($row["type"]=="venue"){
+				$args = json_decode($row["file"]);
+				array_push($list, array("type"=>"venue", "id"=>strval($cnt), "latitude"=>$args->{'location'}->{'latitude'}, "longitude"=>$args->{'location'}->{'latitude'},
+										 "title"=>$row["text"], "address"=>$args->{'address'}, "reply_markup"=>$keyboard));
+			}else if ($row["type"]=="contact"){
+				$args = json_decode($row["file"]);
+				array_push($list, array("type"=>"contact", "id"=>strval($cnt), "phone_number"=>$args->{'phone_number'}, "first_name"=>$args->{'first_name'}, "reply_markup"=>$keyboard));
+			}else if ($row["type"]=="video_note"){
+				//array_push($list, array("type"=>"video", "id"=>strval($cnt), "video_file_id"=>$row["file"], "reply_markup"=>$keyboard));
 			}else{
 				array_push($list, array("type"=>"article", "id"=>strval($cnt), "title"=>$row["name"],
 										"input_message_content"=>array("message_text"=>$row["text"], "parse_mode"=>"HTML"), "reply_markup"=>$keyboard, "description"=>$row["text"]));
@@ -653,7 +700,8 @@ function on_start($chat_id, $from_id, $txt){
 		}
 	}
 }
-function on_new($chat_id, $from_id, $txt, $data){
+function on_new($chat_id, $txt){
+	global $data;
 	$txtpos = mb_strpos(mb_strtolower($txt), "/text");
 	$itemspos = mb_strpos(mb_strtolower($txt), "/items");
 	$poll_name = "";
@@ -675,6 +723,10 @@ function on_new($chat_id, $from_id, $txt, $data){
 			$file_id = $data->{'message'}->{'document'}->{'file_id'};
 			$doc_type = "document";
 		}
+		if (property_exists($data->{'message'}, 'audio')){
+			$file_id = $data->{'message'}->{'audio'}->{'file_id'};
+			$doc_type = "audio";
+		}
 		if ($doc_type == "text" and mb_strlen($poll_text)<1){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("EMPTYPOLL")));
 		}else{
@@ -684,9 +736,9 @@ function on_new($chat_id, $from_id, $txt, $data){
 				$poll_items = array_filter(explode(";", $poll_items[0]));
 				if (count($poll_items)==1){$poll_items = $bck;}
 			}
-			$id = add_poll($from_id, $poll_name, $poll_text, $doc_type, $file_id, $poll_items);
+			$id = add_poll($chat_id, $poll_name, $poll_text, $doc_type, $file_id, $poll_items);
 			if (is_numeric($id)){
-				publish_poll($from_id, $chat_id, $id);
+				publish_poll($chat_id, $chat_id, $id);
 				call_api_method("sendMessage", array("chat_id"=>$chat_id, "text"=>sprintf(tr("SHARE"), $id, $id), "disable_web_page_preview"=>true));
 				answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("DONATE"), "disable_web_page_preview"=>true, "parse_mode"=>"HTML"));
 			}else{
@@ -697,7 +749,8 @@ function on_new($chat_id, $from_id, $txt, $data){
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("NEWERROR")));
 	}
 }
-function on_edit($chat_id, $from_id, $txt, $data){
+function on_edit($chat_id, $txt){
+	global $data;
 	$txtpos = mb_strpos(mb_strtolower($txt), "/text");
 	$itemspos = mb_strpos(mb_strtolower($txt), "/items");
 	$poll_id = "";
@@ -731,22 +784,26 @@ function on_edit($chat_id, $from_id, $txt, $data){
 		$file_id = $data->{'message'}->{'document'}->{'file_id'};
 		$doc_type = "document";
 	}
+	if (property_exists($data->{'message'}, 'audio')){
+		$file_id = $data->{'message'}->{'audio'}->{'file_id'};
+		$doc_type = "audio";
+	}
 	if ($doc_type == "text" and mb_strlen($poll_text)<1){
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("EMPTYPOLL")));
 		return;
 	}
 	if (mb_strtolower($poll_id) == "last"){
-		$poll_id = get_last_id($from_id);
+		$poll_id = get_last_id($chat_id);
 		if (!is_numeric($poll_id)){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$poll_id));
 			return;
 		}
 	}
-	$res = edit_poll($from_id, $poll_id, $poll_text, $doc_type, $file_id, $poll_items);
+	$res = edit_poll($chat_id, $poll_id, $poll_text, $doc_type, $file_id, $poll_items);
 	if ($res!="OK"){
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 	}else{
-		publish_poll($from_id, $chat_id, $poll_id);
+		publish_poll($chat_id, $chat_id, $poll_id);
 	}
 }
 function on_publish($chat_id, $from_id, $txt){
@@ -764,50 +821,50 @@ function on_publish($chat_id, $from_id, $txt){
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDID")));
 	}
 }
-function on_delete($chat_id, $from_id, $txt){
+function on_delete($chat_id, $txt){
 	$id = trim(mb_substr($txt, 7));
 	if (mb_strtolower($id) == "last"){
-		$id = get_last_id($from_id);
+		$id = get_last_id($chat_id);
 		if (!is_numeric($id)){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
-	$res = is_numeric($id) ? delete_poll($from_id, $id) : tr("INVALIDID");
+	$res = is_numeric($id) ? delete_poll($chat_id, $id) : tr("INVALIDID");
 	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
-function on_restore($chat_id, $from_id, $txt){
+function on_restore($chat_id, $txt){
 	$id = trim(mb_substr($txt, 8));
 	if (mb_strtolower($id) == "last"){
-		$id = get_last_id($from_id);
+		$id = get_last_id($chat_id);
 		if (!is_numeric($id)){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
-	$res = is_numeric($id) ? restore_poll($from_id, $id) : tr("INVALIDID");
+	$res = is_numeric($id) ? restore_poll($chat_id, $id) : tr("INVALIDID");
 	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
-function on_lock($chat_id, $from_id, $id, $state){
+function on_lock($chat_id, $id, $state){
 	if (mb_strtolower($id) == "last"){
-		$id = get_last_id($from_id);
+		$id = get_last_id($chat_id);
 		if (!is_numeric($id)){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
-	$res = is_numeric($id) ? set_lock($from_id, $id, $state) : tr("INVALIDID");
+	$res = is_numeric($id) ? set_lock($chat_id, $id, $state) : tr("INVALIDID");
 	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
-function on_public($chat_id, $from_id, $id, $state){
+function on_public($chat_id, $id, $state){
 	if (mb_strtolower($id) == "last"){
-		$id = get_last_id($from_id);
+		$id = get_last_id($chat_id);
 		if (!is_numeric($id)){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
 			return;
 		}
 	}
-	$res = is_numeric($id) ? set_public($from_id, $id, $state) : tr("INVALIDID");
+	$res = is_numeric($id) ? set_public($chat_id, $id, $state) : tr("INVALIDID");
 	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
 function on_get($chat_id, $from_id, $txt){
@@ -822,8 +879,9 @@ function on_get($chat_id, $from_id, $txt){
 	$res = is_numeric($id) ? get_info($from_id, $id) : tr("INVALIDID");
 	answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$res));
 }
-function on_feedback($chat_id, $from_id, $txt, $data){
+function on_feedback($chat_id, $txt){
 	global $admin_id;
+	global $data;
 	$txt = trim(mb_substr($txt, 9));
 	if (mb_strlen($txt)>0){
 		$file_id = "";
@@ -840,6 +898,43 @@ function on_feedback($chat_id, $from_id, $txt, $data){
 	}else{
 		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("FEEDBACKERROR")));
 	}
+}
+function on_attach($chat_id, $txt){
+	$id = trim(mb_substr($txt, 7));
+	if (mb_strtolower($id) == "last"){
+		$id = get_last_id($chat_id);
+		if (!is_numeric($id)){
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>$id));
+			return;
+		}
+	}
+	$id = intval($id);
+	$db = init_db();
+	$sql = "SELECT type, file FROM stack WHERE author_id=".$chat_id;
+	$res = $db->query($sql);
+	if (!$res){
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>"ATTACH_SELECT_FAIL.\n".$db->lastErrorMsg()));
+		$db->close();
+		return;
+	}
+	$row = $res->fetchArray();
+	if (!$row or $row["type"]=="none" or mb_strlen($row["file"])<1){
+		$db->close();
+		answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("INVALIDMEDIA")));
+		return;
+	}else{
+		$sql = "UPDATE main_polls SET type=:type, file=:file WHERE ID=".$id;
+		$stmt = $db->prepare($sql);
+		$stmt->bindValue(':type', $row["type"], SQLITE3_TEXT);
+		$stmt->bindValue(':file', $row["file"], SQLITE3_TEXT);
+		if (!$stmt->execute()){
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>"ATTACH_UPDATE_FAIL.\n".$db->lastErrorMsg()));
+			$db->close();
+			return;
+		}
+		if (publish_poll($chat_id, $chat_id, $id)=="OK"){answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>tr("STATECHANGED")));}
+	}
+	$db->close();
 }
 //
 function on_callback($query_id, $user_id, $btn_data, $chat_id, $message_id, $inline){
@@ -865,6 +960,67 @@ function on_callback($query_id, $user_id, $btn_data, $chat_id, $message_id, $inl
 	}
 	$db->close();
 }
+function update_stack($user_id){
+	$user_id = intval($user_id);
+	global $data;
+	$type = "none";
+	$file = "";
+	if (property_exists($data->{'message'}, 'photo')){
+		$type = "photo";
+		$file = $data->{'message'}->{'photo'}[count($data->{'message'}->{'photo'})-1]->{'file_id'};
+	}else if (property_exists($data->{'message'}, 'document')){
+		$type = "document";
+		$file = $data->{'message'}->{'document'}->{'file_id'};
+	}else if (property_exists($data->{'message'}, 'audio')){
+		$type = "audio";
+		$file = $data->{'message'}->{'audio'}->{'file_id'};
+	}else if (property_exists($data->{'message'}, 'voice')){
+		$type = "voice";
+		$file = $data->{'message'}->{'voice'}->{'file_id'};
+	}else if (property_exists($data->{'message'}, 'sticker')){
+		$type = "sticker";
+		$file = $data->{'message'}->{'sticker'}->{'file_id'};
+	}else if (property_exists($data->{'message'}, 'video_note')){
+		$type = "video_note";
+		$file = $data->{'message'}->{'video_note'}->{'file_id'};
+	}else if (property_exists($data->{'message'}, 'venue')){
+		$type = "venue";
+		$file = json_encode($data->{'message'}->{'venue'});
+	}else if (property_exists($data->{'message'}, 'location')){
+		$type = "location";
+		$file = json_encode($data->{'message'}->{'location'});
+	}else if (property_exists($data->{'message'}, 'contact')){
+		$type = "contact";
+		$file = json_encode($data->{'message'}->{'contact'});
+	}
+	$db = init_db();
+	$sql = "SELECT type, file FROM stack WHERE author_id=".$user_id;
+	$res = $db->query($sql);
+	if (!$res){
+		$db->close();
+		return;
+	}
+	$row = $res->fetchArray();
+	if ($row){
+		if ($row["type"]==$type and $row["file"]==$file){
+			$db->close();
+			return;
+		}
+		$sql = "UPDATE stack SET type=:type, file=:file WHERE author_id=".$user_id;
+		$stmt = $db->prepare($sql);
+		$stmt->bindValue(':type', $type, SQLITE3_TEXT);
+		$stmt->bindValue(':file', $file, SQLITE3_TEXT);
+		$stmt->execute();
+	}else{
+		$sql = "INSERT INTO stack (author_id, type, file) VALUES (:author_id, :type, :file);";
+		$stmt = $db->prepare($sql);
+		$stmt->bindValue(':author_id', $user_id, SQLITE3_INTEGER);
+		$stmt->bindValue(':type', $type, SQLITE3_TEXT);
+		$stmt->bindValue(':file', $file, SQLITE3_TEXT);
+		$stmt->execute();
+	}
+	$db->close();
+}
 // Parser
 date_default_timezone_set('Europe/Moscow');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -884,34 +1040,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			on_help($chat_id);
 		}else if (mb_substr(mb_strtolower($txt), 0, 6 ) == "/start"){
 			on_start($chat_id, $from_id, $txt);
-		}else if (mb_substr(mb_strtolower($txt), 0, 9 ) == "/feedback"){
-			on_feedback($chat_id, $from_id, $txt, $data);
-		}else if (mb_substr(mb_strtolower($txt), 0, 4 ) == "/new" and $chat_id == $from_id){
-			on_new($chat_id, $from_id, $txt, $data);
-		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/edit" and $chat_id == $from_id){
-			on_edit($chat_id, $from_id, $txt, $data);
 		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/publish"){
 			on_publish($chat_id, $from_id, $txt);
-		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/delete" and $chat_id == $from_id){
-			on_delete($chat_id, $from_id, $txt);
-		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/restore" and $chat_id == $from_id){
-			on_restore($chat_id, $from_id, $txt);
-		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/lock" and $chat_id == $from_id){
-			$id = trim(mb_substr($txt, 5));
-			on_lock($chat_id, $from_id, $id, "locked");
-		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/unlock" and $chat_id == $from_id){
-			$id = trim(mb_substr($txt, 7));
-			on_lock($chat_id, $from_id, $id, "active");
-		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/show" and $chat_id == $from_id){
-			$id = trim(mb_substr($txt, 5));
-			on_public($chat_id, $from_id, $id, 1);
-		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/hide" and $chat_id == $from_id){
-			$id = trim(mb_substr($txt, 5));
-			on_public($chat_id, $from_id, $id, 0);
-		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/list" and $chat_id == $from_id){
-			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_list($from_id)));
 		}else if (mb_substr(mb_strtolower($txt), 0, 4 ) == "/get"){
 			on_get($chat_id, $from_id, $txt);
+		}else if (mb_substr(mb_strtolower($txt), 0, 4 ) == "/new" and $chat_id == $from_id){
+			on_new($chat_id, $txt);
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/edit" and $chat_id == $from_id){
+			on_edit($chat_id, $txt);
+		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/attach" and $chat_id == $from_id){
+			on_attach($chat_id, $txt);
+			$chat_id=0;
+		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/delete" and $chat_id == $from_id){
+			on_delete($chat_id, $txt);
+		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/restore" and $chat_id == $from_id){
+			on_restore($chat_id, $txt);
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/lock" and $chat_id == $from_id){
+			$id = trim(mb_substr($txt, 5));
+			on_lock($chat_id, $id, "locked");
+		}else if (mb_substr(mb_strtolower($txt), 0, 7 ) == "/unlock" and $chat_id == $from_id){
+			$id = trim(mb_substr($txt, 7));
+			on_lock($chat_id, $id, "active");
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/show" and $chat_id == $from_id){
+			$id = trim(mb_substr($txt, 5));
+			on_public($chat_id, $id, 1);
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/hide" and $chat_id == $from_id){
+			$id = trim(mb_substr($txt, 5));
+			on_public($chat_id, $id, 0);
+		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/list" and $chat_id == $from_id){
+			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_list($chat_id)));
+		}else if (mb_substr(mb_strtolower($txt), 0, 9 ) == "/feedback" and $chat_id == $from_id){
+			on_feedback($chat_id, $txt);
 		}else if (mb_substr(mb_strtolower($txt), 0, 5 ) == "/stat" and $chat_id == $from_id and $from_id==$admin_id){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_stat()));
 		}else if (mb_substr(mb_strtolower($txt), 0, 6 ) == "/users" and $chat_id == $from_id and $from_id==$admin_id){
@@ -919,6 +1078,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}else if (mb_substr(mb_strtolower($txt), 0, 8 ) == "/authors" and $chat_id == $from_id and $from_id==$admin_id){
 			answer_by_method("sendMessage", array("chat_id"=>$chat_id, "text"=>get_users("authors"), "parse_mode"=>"HTML"));
 		}
+		if ($chat_id == $from_id){update_stack($chat_id);}
 	}else if (property_exists($data, 'callback_query') and isset($data->{'callback_query'})){
 		$query_id = $data->{"callback_query"}->{"id"};
 		$user_id = $data->{"callback_query"}->{"from"}->{"id"};

@@ -4,22 +4,24 @@ This is a bot for pollings.
 Just list of commands:
 1️⃣  Create a new poll
 /new /text /items
-2️⃣  Edit an existing poll by ID
+2️⃣  Attach a media
+/attach 123456
+3️⃣  Edit an existing poll by ID
 /edit /text /items
-3️⃣  Publish poll in current chat
+4️⃣  Publish poll in current chat
 /publish 123456
-4️⃣  Lock/unlock a poll by id
+5️⃣  Lock/unlock a poll by id
 /lock 123456
 /unlock 123456
-5️⃣  Delete/restore a poll by id
+6️⃣  Delete/restore a poll by id
 /delete 123456
 /restore 123456
-6️⃣  Show/hide results on buttons
+7️⃣  Show/hide results on buttons
 /show 123456
 /hide 123456
-7️⃣  Get the polling results with the specified id
+8️⃣  Get the polling results with the specified id
 /get 123456
-8️⃣  Get a list of polls
+9️⃣  Get a list of polls
 /list
-9️⃣  Send an anonymous text message to the developer
+🔟 Send an anonymous text message to the developer
 /feedback Text

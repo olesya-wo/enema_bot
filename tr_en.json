@@ -27,5 +27,6 @@
 "DBBUSY": "❗️ DB is busy, try again.",
 "FEEDBACKOK": "Your message has been sent.",
 "FEEDBACKERROR": "Need some text.",
-"GROUPNOTSUPPORT": "Media groups are not supported."
+"GROUPNOTSUPPORT": "Media groups are not supported.",
+"INVALIDMEDIA": "Media not found."
 }
