@@ -21,6 +21,8 @@ Just list of commands:
 /hide 123456
 8️⃣  Get the polling results with the specified id
 /get 123456
+Number of votes in the last N hours
+/activity 123456 /time N
 9️⃣  Get a list of polls
 /list
 🔟 Send an anonymous text message to the developer
