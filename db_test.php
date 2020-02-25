@@ -1,11 +1,26 @@
 <?php
-require_once( 'db_sqlite.php' );
+require_once( 'settings.php' );
+require_once( 'db_' . $db_module . '.php' );
+
+// Дополнительная настройка, если подключен модуль SQLite
+$db_name  = 'enema_test_db.sqlite3';
+if ( file_exists( $db_name ) ) { unlink($db_name); }
 
 // Инициализация базы
-$db_name = "db_for_test.db";
-if ( file_exists( $db_name ) ) { unlink($db_name); }
-$db = db_init( $db_name );
+$db = db_init();
 if ( !$db ) { echo __LINE__; die; }
+
+// Очистка таблиц
+if ( !db_clear( $db ) ) {
+    echo db_last_error( $db );
+    die;
+}
+
+// Инициализация таблиц
+if ( !db_init_tables( $db, $increment, $suff ) ) {
+    echo db_last_error( $db );
+    die;
+}
 
 // Создание опроса
 $author  = '39879348';
@@ -15,7 +30,7 @@ $text    = 'Текст опроса 📊';
 $type    = 'photo';
 $file    = 'kdnskjnvdskljv';
 $poll_id = db_add_poll( $db, $author, $name, $items, $text, $type, $file );
-if ( $poll_id < 1 ) { echo __LINE__."\n"; var_dump($poll_id); die; }
+if ( $poll_id < 1 ) { echo __LINE__."\n"; var_dump($poll_id); echo(db_last_error( $db )); die; }
 
 // Получение опроса
 $res = db_get_poll( $db, $poll_id );
@@ -135,7 +150,7 @@ $res = db_get_vote( $db, $new_id, $user_id_0 );
 if ( $res != 0 ) { echo __LINE__."\n"; var_dump($res); die; }
 
 // Получение голосов у всего опроса
-$user_id_2 = '49549849854';
+$user_id_2 = '954984985';
 $res = db_add_vote( $db, $poll_id, 3, $user_id_2 );
 if ( !$res ) { echo __LINE__."\n"; var_dump($res); die; }
 $res = db_get_poll_votes( $db, $poll_id, 1 );
