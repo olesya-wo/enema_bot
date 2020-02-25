@@ -47,7 +47,7 @@ $log   = $log . 'Clean: ' . $clean . "\n";
 // Удаление голосов у помеченных опросов
 $sql = "DELETE FROM votes WHERE votes.poll_id IN (SELECT polls.poll_id FROM polls INNER JOIN votes ON ( votes.poll_id = polls.poll_id ) WHERE polls.state='clean');";
 if ( !$db->exec( $sql ) ) {
-    send_to_admin( "Error: CLEAN_DELETE_FAIL\n" . $db->lastErrorMsg() );
+    send_to_admin( "Error: CLEAN_VOTES_DELETE_FAIL\n" . $db->lastErrorMsg() );
     $db->close();
     exit();
 }
@@ -55,7 +55,7 @@ if ( !$db->exec( $sql ) ) {
 // Удаление помеченных опросов
 $sql   = "DELETE FROM polls WHERE state = 'clean'";
 if ( !$db->exec( $sql ) ) {
-    send_to_admin( "Error: CLEAN_DELETE_FAIL\n" . $db->lastErrorMsg() );
+    send_to_admin( "Error: CLEAN_POLLS_DELETE_FAIL\n" . $db->lastErrorMsg() );
     $db->close();
     exit();
 }
