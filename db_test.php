@@ -184,4 +184,6 @@ if ( $res['type']      != $type      ) { echo __LINE__."\n"; var_dump($res['type
 if ( $res['file']      != $file      ) { echo __LINE__."\n"; var_dump($res['file']);      die; }
 if ( $res['author_id'] != $user_id_0 ) { echo __LINE__."\n"; var_dump($res['author_id']); die; }
 
+db_close( $db );
+
 echo "OK\n";

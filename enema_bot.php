@@ -141,7 +141,7 @@ function get_list_inline( $query_id, $author ) {
                             'switch_pm_parameter' => 'ID'
                           )
                         );
-        $db->close();
+        db_close( $db );
         return;
     }
     if ( !$res ) {
@@ -155,7 +155,7 @@ function get_list_inline( $query_id, $author ) {
                             'switch_pm_parameter' => 'ID'
                           )
                         );
-        $db->close();
+        db_close( $db );
         return;
     }
     $cnt  = 0;
@@ -281,7 +281,7 @@ function get_list_inline( $query_id, $author ) {
         }
         $cnt += 1;
     }
-    $db->close();
+    db_close( $db );
     answer_by_method( 'answerInlineQuery', array(
                                             'inline_query_id' => $query_id,
                                             'results'         => json_encode( $list ),
@@ -677,7 +677,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
                     answer_ok();
                 }
             }
-            $db->close();
+            db_close( $db );
         }
     }
     // Обработчик кнопок голосования
@@ -713,7 +713,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
                 call_api_method( 'editMessageReplyMarkup', array( 'chat_id' => $chat_id, 'message_id' => $message_id, 'reply_markup' => json_encode( $keyboard ) ) );
             }
         }
-        $db->close();
+        db_close( $db );
     }
     // Публикация в канал
     // Пока отключена, так как невозможно проверить права - нет поля from
@@ -727,7 +727,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
     //             publish_poll( $db, null, $chat_id, $id );
     //             answer_ok();
     //         }
-    //         $db->close();
+    //         db_close( $db );
     //     }
     // }
     // Inline-список опросов
