@@ -2,10 +2,6 @@
 require_once( 'settings.php' );
 require_once( 'db_' . $db_module . '.php' );
 
-// Дополнительная настройка, если подключен модуль SQLite
-$db_name  = 'enema_test_db.sqlite3';
-if ( file_exists( $db_name ) ) { unlink($db_name); }
-
 // Инициализация базы
 $db = db_init();
 if ( !$db ) { echo __LINE__; die; }
