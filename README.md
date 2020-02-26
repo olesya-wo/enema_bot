@@ -1,8 +1,8 @@
 # enema_bot
-Telegram bot for pollings
+Telegram-бот для голосований.
 
-In single command - create, edit, lock, unlock, delete, restore, get a list of polls and its results, easy publication...
+Одной командой - создавать, педактировать, блокировать/разблокировать, удалять/восстанавливать, получать список опросов и их результаты, легко опубликовать...
 
-Support HTML tags, photo, video and documents.
+Поддерживает HTML-тэги, фото, видео, документы и прочее.
 
-<a href="https://telegra.ph/Enema-bot-RU-05-18">Full help</a>
+<a href="https://telegra.ph/Enema-bot-RU-05-18">Полная справка</a>
