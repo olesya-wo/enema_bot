@@ -511,8 +511,8 @@ function on_list_cb( $db, $chat_id, $from_id, $arguments, $data ) {
         return;
     }
     $list = '';
-    $cnt = 0;
-    while ( $row = $res[$cnt] ) {
+    for ( $i = 0; $i < count( $res ); $i++ ) {
+        $row = $res[$i];
         if ( $row['public'] == 1 ) {
             $list = $list . '📊';
         }
@@ -527,7 +527,6 @@ function on_list_cb( $db, $chat_id, $from_id, $arguments, $data ) {
         }
         $dt   = new DateTime( '@' . $row['created'] );
         $list = $list . $row['name'] . ":\n" . $dt->format( 'Y-m-d' ) . ' ID: ' . $row['poll_id'] . "\n\n";
-        $cnt += 1;
     }
     answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => $list ) );
 }
