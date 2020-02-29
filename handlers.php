@@ -50,6 +50,7 @@ function on_get_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll = db_get_poll( $db, $poll_id );
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll == 0 ) {
@@ -65,6 +66,7 @@ function on_get_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $voted = db_get_poll_votes( $db, $poll_id, 0 );
     if ( $voted == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $voted == 0 ) {
@@ -80,6 +82,7 @@ function on_get_cb( $db, $chat_id, $from_id, $arguments, $data ) {
         $cnt = db_get_poll_item_votes( $db, $poll_id, $i + 1 );
         if ( $cnt == -1 ) {
             answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+            log_error( db_last_error( $db ) );
             return;
         }
         $arr[$items[$i]] = $cnt;
@@ -115,6 +118,7 @@ function on_activity_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll = db_get_poll( $db, $poll_id );
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Не найдено такого
@@ -130,6 +134,7 @@ function on_activity_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $res = db_get_poll_votes( $db, $poll_id, $poll_time );
     if ( $res == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     answer_by_method( 'sendMessage', array(
@@ -160,6 +165,7 @@ function on_new_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     // Не найдено имя или варианта для опроса
     if ( mb_strlen( $poll_name ) < 1 or mb_strlen( $poll_items ) < 1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => tr( 'NEWERROR' ) ) );
+        log_info( 'NEWERROR:' . $arguments );
         return;
     }
     // Находим аттач, если он есть
@@ -193,6 +199,7 @@ function on_new_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll_count = db_get_poll_count( $db, $chat_id, 0 );
     if ( $poll_count == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll_count > 9 ) {
@@ -203,6 +210,7 @@ function on_new_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll_count  = db_get_poll_count( $db, $chat_id, 1 );
     if ( $poll_count == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll_count > 99 ) {
@@ -213,6 +221,7 @@ function on_new_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $id = db_add_poll( $db, $chat_id, $poll_name, $poll_items, $poll_text, $doc_type, $file_id );
     if ( $id == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Для статистики
@@ -258,6 +267,7 @@ function on_edit_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     }
     if ( mb_strlen( $poll_id ) < 1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => tr( 'INVALIDFORMAT' ) ) );
+        log_info( 'INVALIDFORMAT:' . $arguments );
         return;
     }
     $doc_type = 'text';
@@ -283,6 +293,7 @@ function on_edit_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll = db_get_poll( $db, $poll_id );
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll == 0 ) {
@@ -311,6 +322,7 @@ function on_edit_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $res = db_edit_poll( $db, $poll_id, $poll_items, $poll_text, $doc_type, $file_id );
     if ( $res == 0 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Опубликовать обновлённый опрос
@@ -328,6 +340,7 @@ function on_attach_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $media = db_get_media_stack( $db, $chat_id );
     if ( $media == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Ничего не найдено
@@ -339,6 +352,7 @@ function on_attach_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll = db_get_poll( $db, $poll_id );
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll == 0 ) {
@@ -366,12 +380,14 @@ function on_attach_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $res = db_edit_poll( $db, $poll_id, $poll['items'], $poll['text'], $media['type'], $media['file'] );
     if ( $res == 0 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Сбросить сохранённое медиа
     $res = db_update_media_stack( $db, $from_id, 'none', '' );
     if ( !$res ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Опубликовать обновлённый опрос
@@ -390,6 +406,7 @@ function on_delete_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     // Ошибка БД
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Не найдено такого
@@ -412,6 +429,7 @@ function on_delete_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     // Ошибка БД
     if ( !$res ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Отвечаем, что удалили
@@ -428,6 +446,7 @@ function on_restore_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     // Ошибка БД
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Не найдено такого
@@ -449,6 +468,7 @@ function on_restore_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $poll_count = db_get_poll_count( $db, $chat_id, 0 );
     if ( $poll_count == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll_count > 9 ) {
@@ -460,6 +480,7 @@ function on_restore_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     // Ошибка БД
     if ( !$res ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Отвечаем, что восстановили
@@ -482,6 +503,7 @@ function on_list_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $res = db_get_poll_list( $db, $from_id );
     if ( $res == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( !$res ) {
@@ -545,6 +567,7 @@ function on_stat_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     $cnt = db_get_poll_count( $db, 0, null );
     if ( $cnt == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     $res = 'In DB: ' . $cnt . "\n" . file_get_contents( 'last_poll_datetime.txt' );
@@ -569,6 +592,7 @@ function on_dbdrop_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     }
     if ( !db_clear( $db ) ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => 'OK' ) );
@@ -585,6 +609,7 @@ function on_dbcreate_cb( $db, $chat_id, $from_id, $arguments, $data ) {
     global $increment, $suff;
     if ( !db_init_tables( $db, $increment, $suff ) ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => 'OK' ) );

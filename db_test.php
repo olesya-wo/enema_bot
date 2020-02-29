@@ -1,5 +1,6 @@
 <?php
 require_once( 'settings.php' );
+require_once( 'logger.php' );
 require_once( 'db_' . $db_module . '.php' );
 
 // Инициализация базы

@@ -21,7 +21,7 @@ $sql = "SELECT COUNT(poll_id) FROM polls";
 $res = $db->query( $sql );
 if ( !$res ) {
     send_to_admin( "Error: CLEAN_COUNT_TOTAL_FAIL\n" . db_last_error( $db ) );
-    $db->close();
+    db_close( $db );
     exit();
 }
 $log = 'In DB: ' . db_fetch( $res )[0] . "\n";
@@ -31,7 +31,7 @@ $sql = "SELECT COUNT(poll_id) FROM polls WHERE state = 'deleted'";
 $res = $db->query( $sql );
 if ( !$res ) {
     send_to_admin( "Error: CLEAN_COUNT_DELETED_FAIL\n" . db_last_error( $db ) );
-    $db->close();
+    db_close( $db );
     exit();
 }
 $deleted = db_fetch( $res )[0];
@@ -42,7 +42,7 @@ $sql     = "SELECT COUNT(poll_id) FROM polls WHERE state = 'clean'";
 $res     = $db->query( $sql );
 if ( !$res ) {
     send_to_admin( "Error: CLEAN_COUNT_CLEAN_FAIL\n" . db_last_error( $db ) );
-    $db->close();
+    db_close( $db );
     exit();
 }
 $clean = db_fetch( $res )[0];
@@ -53,7 +53,7 @@ $log   = $log . 'Clean: ' . $clean . "\n";
 $sql = "DELETE FROM votes WHERE votes.poll_id IN (SELECT polls.poll_id FROM polls INNER JOIN votes ON ( votes.poll_id = polls.poll_id ) WHERE polls.state='clean');";
 if ( !$db->exec( $sql ) ) {
     send_to_admin( "Error: CLEAN_VOTES_DELETE_FAIL\n" . db_last_error( $db ) );
-    $db->close();
+    db_close( $db );
     exit();
 }
 
@@ -61,7 +61,7 @@ if ( !$db->exec( $sql ) ) {
 $sql   = "DELETE FROM polls WHERE state = 'clean'";
 if ( !$db->exec( $sql ) ) {
     send_to_admin( "Error: CLEAN_POLLS_DELETE_FAIL\n" . db_last_error( $db ) );
-    $db->close();
+    db_close( $db );
     exit();
 }
 
@@ -69,7 +69,7 @@ if ( !$db->exec( $sql ) ) {
 $sql = "UPDATE polls SET state = 'clean' WHERE state = 'deleted'";
 if ( !$db->exec( $sql ) ) {
     send_to_admin( "Error: CLEAN_MARK_FAIL\n" . db_last_error( $db ) );
-    $db->close();
+    db_close( $db );
     exit();
 }
 
@@ -85,5 +85,8 @@ if ( $clean > 0 or $deleted > 0 ) {
         send_to_admin( "Error: CLEAN_COUNT_AFTER_FAIL\n" . db_last_error( $db ) );
     }
 }
+else {
+    log_info( 'db_cleaner ok' );
+}
 
-$db->close();
+db_close( $db );

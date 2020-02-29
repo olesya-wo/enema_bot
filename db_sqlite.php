@@ -9,7 +9,10 @@ $suff      = '';
 function db_init() {
     global $bot_name;
     $db = new SQLite3( $bot_name . '_db.sqlite3' );
-    if ( !$db ) { return; }
+    if ( !$db ) {
+        log_error( 'SQLite initialisation fail' );
+        return;
+    }
     $db->busyTimeout( 10000 );
     return $db;
 }

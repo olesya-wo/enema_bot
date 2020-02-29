@@ -1,5 +1,6 @@
 <?php
 require_once( 'settings.php' );
+require_once( 'logger.php' );
 require_once( 'db_' . $db_module . '.php' );
 require_once( 'localization.php' );
 require_once( 'tg_bot_api.php' );
@@ -12,6 +13,7 @@ function publish_poll( $db, $chat_id, $from_id, $poll_id ) {
     $poll      = db_get_poll( $db, $poll_id );
     if ( $poll == -1 ) {
         call_api_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     if ( $poll == 0 ) {
@@ -123,6 +125,7 @@ function publish_poll( $db, $chat_id, $from_id, $poll_id ) {
     else {
         call_api_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => $poll_text, 'reply_markup' => json_encode( $keyboard ), 'parse_mode' => 'HTML' ) );
     }
+    log_info( 'poll published: ' . $poll['name'] );
 }
 // Вывод inline-списка опросов
 function get_list_inline( $query_id, $author ) {
@@ -141,6 +144,7 @@ function get_list_inline( $query_id, $author ) {
                             'switch_pm_parameter' => 'ID'
                           )
                         );
+        log_error( db_last_error( $db ) );
         db_close( $db );
         return;
     }
@@ -328,6 +332,7 @@ function vote( $db, $user_id, $poll_id, $item ) {
     // Ищем опрос
     $poll    = db_get_poll( $db, $poll_id );
     if ( $poll == -1 ) {
+        log_error( db_last_error( $db ) );
         return db_last_error( $db );
     }
     if ( !$poll ) {
@@ -346,11 +351,13 @@ function vote( $db, $user_id, $poll_id, $item ) {
     $items_count = count( $items );
     // На всякий случай проверить диапазон
     if ( $item < 1 or $item > $items_count ) {
+        log_error( 'INVALIDBTNDATA: ' . $poll['poll_id'] . ':' . $item );
         return tr( 'INVALIDBTNDATA' );
     }
     // За какой пункт у этого юзера есть голос
     $current = db_get_vote( $db, $poll_id, $user_id );
     if ( $current == -1 ) {
+        log_error( db_last_error( $db ) );
         return db_last_error( $db );
     }
     // Голос уже учтён
@@ -359,10 +366,12 @@ function vote( $db, $user_id, $poll_id, $item ) {
     }
     // Очистить старые голоса
     if ( !db_delete_vote( $db, $poll_id, $user_id ) ) {
+        log_error( db_last_error( $db ) );
         return db_last_error( $db );
     }
     // Внести новый
     if ( !db_add_vote( $db, $poll_id, $item, $user_id ) ) {
+        log_error( db_last_error( $db ) );
         return db_last_error( $db );
     }
     if ( $current == 0 ) {
@@ -382,6 +391,7 @@ function get_id_argument( $db, $chat_id, $arguments ) {
         // Ошибка БД
         if ( $id == -1 ) {
             answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+            log_error( db_last_error( $db ) );
             return 0;
         }
         // У автора нет опросов
@@ -408,6 +418,7 @@ function set_poll_lock( $db, $chat_id, $from_id, $arguments, $state ) {
     // Ошибка БД
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Не найдено такого
@@ -435,6 +446,7 @@ function set_poll_lock( $db, $chat_id, $from_id, $arguments, $state ) {
     // Ошибка БД
     if ( !$res ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Отвечаем, что заблокировали/разблокировали
@@ -451,6 +463,7 @@ function set_poll_public( $db, $chat_id, $from_id, $arguments, $state ) {
     // Ошибка БД
     if ( $poll == -1 ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Не найдено такого
@@ -478,6 +491,7 @@ function set_poll_public( $db, $chat_id, $from_id, $arguments, $state ) {
     // Ошибка БД
     if ( !$res ) {
         answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => db_last_error( $db ) ) );
+        log_error( db_last_error( $db ) );
         return;
     }
     // Отвечаем, что заблокировали/разблокировали
@@ -528,6 +542,7 @@ function build_keyboard( $db, $poll ) {
             $t = db_get_poll_item_votes( $db, $poll['poll_id'], $i + 1 );
             if ( $t == -1 ) {
                 array_push( $score, '[?]' );
+                log_error( db_last_error( $db ) );
             }
             else {
                 array_push( $score, $t > 0 ? ' [' . $t . ']' : '' );
@@ -605,6 +620,7 @@ function update_stack( $db, $user_id, $data ) {
             return $type;
         }
         else {
+            log_error( db_last_error( $db ) );
             return -1;
         }
     }
@@ -633,6 +649,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
         // Альбомы не поддерживаются
         if ( property_exists( $data->{'message'}, 'media_group_id' ) and $txt != null ) {
             answer_by_method( 'sendMessage', array( 'chat_id' => $chat_id, 'text' => tr( 'GROUPNOTSUPPORT' ) ) );
+            log_info( 'GROUPNOTSUPPORT' );
         }
         else {
             $db = db_init();
@@ -700,7 +717,14 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
         $db          = db_init();
         $lst         = explode( ':', $btn_data, $limit = 2 );
         $poll_id     = intval( $lst[0] );
-        $vote_answer = count( $lst ) == 2 ? vote( $db, $user_id, $poll_id, $lst[1] ) : tr( 'INVALIDBTNDATA' );
+        $vote_answer = '';
+        if ( count( $lst ) == 2 ) {
+            $vote_answer = vote( $db, $user_id, $poll_id, $lst[1] );
+        }
+        else {
+            $vote_answer = tr( 'INVALIDBTNDATA' );
+            log_error( 'INVALIDBTNDATA:' . $btn_data );
+        }
         answer_by_method( 'answerCallbackQuery', array( 'callback_query_id' => $query_id, 'text' => $vote_answer ) );
         // После голоса надо обновить клавиатуру
         $poll = db_get_poll( $db, $poll_id );
@@ -739,6 +763,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
     }
 }
 else {
+    log_info( 'GET' );
     echo( "<h1>$bot_title</h1>Author: $author<br><br>" );
     echo date( 'Y-m-d H:i:s' );
 }

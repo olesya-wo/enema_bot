@@ -18,6 +18,7 @@ function db_init() {
         $db = new PDO( $dsn, $mysql_user, $mysql_pass );
     }
     catch ( PDOException $e ) {
+        log_error( 'MySQL initialisation fail. ' . $e );
         return null;
     }
     return $db;
