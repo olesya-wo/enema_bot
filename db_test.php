@@ -21,7 +21,7 @@ if ( !db_init_tables( $db, $increment, $suff ) ) {
 }
 
 // Создание опроса
-$author  = '39879348';
+$author  = '3098793048';
 $name    = 'Тестовое имя опроса 1';
 $items   = [ '1', '2', '3', '4', '5' ];
 $text    = 'Текст опроса 📊';
@@ -83,11 +83,11 @@ if ( $res["public"] != $public ) { echo __LINE__."\n"; var_dump($res["public"]);
 // Количество опросов
 $count = 100;
 for ( $i = 0; $i < $count - 1; $i++ ) {
-    $a_i   = '398793498' . $i;
+    $a_i   = '53987934' . $i;
     $name  = 'Тестовое имя опроса ' . $i;
     $text  = 'Текст опроса 📊 ' . $i;
     $id    = db_add_poll( $db, $a_i, $name, $items, $text, 'text', '' );
-    if ( $id < $i + 1 ) { echo __LINE__."\n"; var_dump($id); die; }
+    if ( $id < $i + 1 ) { echo __LINE__."\n"; echo "$id\n$i\n"; die; }
 }
 $res = db_get_poll_count( $db, null, 0 );
 if ( $res != $count ) { echo __LINE__."\n"; var_dump($res); die; }
@@ -119,9 +119,9 @@ $res = db_get_last( $db, $author . '0' );
 if ( $res != 0 ) { echo __LINE__."\n"; var_dump($res); die; }
 
 // Добавление голоса
-$user_id_0 = '989847309';
-$user_id_1 = '139182372';
-$user_id_2 = '139483372';
+$user_id_0 = '9890847309';
+$user_id_1 = '1309182372';
+$user_id_2 = '1394830372';
 $res = db_add_vote( $db, $poll_id, 1, $user_id_0 );
 if ( $res != 1 ) { echo __LINE__."\n"; var_dump($res); die; }
 $res = db_add_vote( $db, $poll_id, 1, $user_id_1 );
@@ -148,7 +148,7 @@ $res = db_get_vote( $db, $new_id, $user_id_0 );
 if ( $res != 0 ) { echo __LINE__."\n"; var_dump($res); die; }
 
 // Получение голосов у всего опроса
-$user_id_2 = '954984985';
+$user_id_2 = '9549849805';
 $res = db_add_vote( $db, $poll_id, 3, $user_id_2 );
 if ( !$res ) { echo __LINE__."\n"; var_dump($res); die; }
 $res = db_get_poll_votes( $db, $poll_id, 1 );
@@ -175,7 +175,7 @@ if ( $res['type']      != $type      ) { echo __LINE__."\n"; var_dump($res['type
 if ( $res['file']      != $file      ) { echo __LINE__."\n"; var_dump($res['file']);      die; }
 if ( $res['author_id'] != $user_id_0 ) { echo __LINE__."\n"; var_dump($res['author_id']); die; }
 
-$user_id_0 = 257139195;
+$user_id_0 = '2571391950';
 $type      = 'photo';
 $file      = 'AgACAgIAAxkBAAIBFF5SPMR4b6s1jb16GKnQ40DDENmFAAKWrDEbwAqZSrrskb3riitiG2XBDwAEAQADAgADeQAD484EAAEYBA';
 $res = db_update_media_stack( $db, $user_id_0, $type, $file );

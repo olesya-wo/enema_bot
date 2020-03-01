@@ -3,21 +3,21 @@
 define( 'DB_TYPE_STR', PDO::PARAM_STR );
 define( 'DB_TYPE_INT', PDO::PARAM_INT );
 
-$increment = 'INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE';
-$suff      = 'ENGINE=InnoDB CHARACTER SET=utf8mb4';
+$increment = 'SERIAL PRIMARY KEY';
+$suff      = '';
 
 function db_init() {
     global $db_host, $db_name, $db_user, $db_pass;
     $db = null;
     try {
-        $db = new PDO( "mysql:host=$db_host;dbname=$db_name", $db_user, $db_pass, array( PDO::ATTR_PERSISTENT => true) );
+        $db = new PDO( "pgsql:host=$db_host dbname=$db_name", $db_user, $db_pass, array( PDO::ATTR_PERSISTENT => true) );
     }
     catch ( PDOException $e ) {
-        log_error( 'MySQL initialisation fail. ' . $e->getMessage() );
+        log_error( 'PostgreSQL initialisation fail. ' . $e->getMessage() );
         return null;
     }
     if ( !$db ) {
-        log_error( 'MySQL initialisation fail.' );
+        log_error( 'PostgreSQL initialisation fail.' );
         return null;
     }
     if ( !$db->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT ) ) {

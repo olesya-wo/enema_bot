@@ -3,7 +3,7 @@
 define( 'DB_TYPE_STR', SQLITE3_TEXT );
 define( 'DB_TYPE_INT', SQLITE3_INTEGER );
 
-$increment = 'AUTOINCREMENT';
+$increment = 'INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE';
 $suff      = '';
 
 function db_init() {

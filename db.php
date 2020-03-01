@@ -5,7 +5,7 @@
     // Записи голосований
     polls
         poll_id   - INTEGER - автоинкремент
-        author_id - INTEGER - tg_user_id автора
+        author_id - NUMERIC - tg_user_id автора
         created   - NUMERIC - таймштамп создания опроса
         name      - TEXT    - внутреннее имя
         items     - TEXT    - варианты голосования через \n
@@ -20,12 +20,12 @@
         vote_id   - INTEGER - автоинкремент
         poll_id   - INTEGER - в каком опросе голос
         item      - INTEGER - за что голос
-        update    - NUMERIC - таймштамп создания или последнего обновления
-        user_id   - INTEGER - от кого голос
+        last_upd  - NUMERIC - таймштамп создания или последнего обновления
+        user_id   - NUMERIC - от кого голос
 
     // Таблица для временного хранения файлов для прикреплению к голосованию отдельно командой attach
     stack
-        author_id - INTEGER - tg_user_id
+        author_id - NUMERIC - tg_user_id
         type      - TEXT    - тип файла
         file      - TEXT    - tg_file_id
 
@@ -47,12 +47,12 @@ function db_clear( $db ) {
 Возвращает 1 в случае успеха, или 0 в случае ошибки
 */
 function db_init_tables( $db, $increment, $suff ) {
-    $sql = "CREATE TABLE IF NOT EXISTS polls (poll_id   INTEGER NOT NULL PRIMARY KEY $increment UNIQUE,
-                                              author_id INTEGER NOT NULL,
+    $sql = "CREATE TABLE IF NOT EXISTS polls (poll_id   $increment,
+                                              author_id NUMERIC NOT NULL,
                                               created   NUMERIC,
                                               name      TEXT,
                                               items     TEXT,
-                                              `text`    TEXT,
+                                              text      TEXT,
                                               type      TEXT,
                                               file      TEXT,
                                               state     varchar(8) DEFAULT 'active',
@@ -60,17 +60,17 @@ function db_init_tables( $db, $increment, $suff ) {
                                             ) $suff;";
     if ( !$db->query( $sql ) ) { return 0; }
 
-    $sql = "CREATE TABLE IF NOT EXISTS votes (vote_id   INTEGER NOT NULL PRIMARY KEY $increment UNIQUE,
+    $sql = "CREATE TABLE IF NOT EXISTS votes (vote_id   $increment,
                                               poll_id   INTEGER NOT NULL,
                                               item      INTEGER NOT NULL,
-                                              `update`  NUMERIC,
-                                              user_id   INTEGER NOT NULL
+                                              last_upd  NUMERIC,
+                                              user_id   NUMERIC NOT NULL
                                             );";
     if ( !$db->query( $sql ) ) { return 0; }
 
-    $sql = "CREATE TABLE IF NOT EXISTS stack (author_id INTEGER NOT NULL PRIMARY KEY UNIQUE,
+    $sql = "CREATE TABLE IF NOT EXISTS stack (author_id NUMERIC NOT NULL PRIMARY KEY UNIQUE,
                                               type      TEXT,
-                                              file      TEXT DEFAULT ''
+                                              file      TEXT
                                             );";
     if ( !$db->query( $sql ) ) { return 0; }
     return 1;
@@ -214,7 +214,7 @@ function db_get_poll_votes( $db, $poll_id, $h ) {
     $poll_id = intval( $poll_id );
     $h       = intval( $h );
     $ts      = $h > 0 ? time() - $h * 60 * 60 : 0;
-    $sql     = "SELECT COUNT( vote_id ) FROM votes WHERE poll_id = " . $poll_id . " AND `update` > " . $ts;
+    $sql     = "SELECT COUNT( vote_id ) FROM votes WHERE poll_id = " . $poll_id . " AND last_upd > " . $ts;
     $res = $db->query( $sql );
     return $res ? db_fetch( $res )[0] : -1;
 }
@@ -228,12 +228,12 @@ function db_add_vote( $db, $poll_id, $item, $user_id ) {
     $poll_id = intval( $poll_id );
     $item    = intval( $item );
     $user_id = intval( $user_id );
-    $sql     = "INSERT INTO votes ( poll_id, item, `update`, user_id ) VALUES ( :poll_id, :item, :update, :user_id );";
+    $sql     = "INSERT INTO votes ( poll_id, item, last_upd, user_id ) VALUES ( :poll_id, :item, :last_upd, :user_id );";
     $stmt    = $db->prepare( $sql );
-    $stmt->bindValue( ':poll_id', $poll_id, DB_TYPE_INT );
-    $stmt->bindValue( ':item',    $item,    DB_TYPE_INT );
-    $stmt->bindValue( ':update',  time(),   DB_TYPE_INT );
-    $stmt->bindValue( ':user_id', $user_id, DB_TYPE_INT );
+    $stmt->bindValue( ':poll_id',  $poll_id, DB_TYPE_INT );
+    $stmt->bindValue( ':item',     $item,    DB_TYPE_INT );
+    $stmt->bindValue( ':last_upd', time(),   DB_TYPE_INT );
+    $stmt->bindValue( ':user_id',  $user_id, DB_TYPE_INT );
     return $stmt->execute();
 }
 
