@@ -1,4 +1,5 @@
 <?php
+$start = microtime( true );
 require_once( 'settings.php' );
 require_once( 'logger.php' );
 require_once( 'db_' . $db_module . '.php' );
@@ -187,4 +188,4 @@ if ( $res['author_id'] != $user_id_0 ) { echo __LINE__."\n"; var_dump($res['auth
 
 db_close( $db );
 
-echo "OK\n";
+echo 'OK: ' . round( microtime( true ) - $start, 4 ) . "s\n";

@@ -8,14 +8,9 @@ $suff      = 'ENGINE=InnoDB CHARACTER SET=utf8mb4';
 
 function db_init() {
     global $db_host, $db_name, $db_user, $db_pass;
-    $dsn  = "mysql:host=$db_host;dbname=$db_name";
-    $opt  = [ PDO::ATTR_ERRMODE            => PDO::ERRMODE_SILENT, // Только установка кодов ошибок
-              PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_BOTH,     // Выборка в ассоциативный и нумерованный массив
-              PDO::ATTR_PERSISTENT         => true                 // Не закрывать соединение после каждого запроса
-            ];
     $db = null;
     try {
-        $db = new PDO( $dsn, $db_user, $db_pass, $opt );
+        $db = new PDO( "mysql:host=$db_host;dbname=$db_name", $db_user, $db_pass, array( PDO::ATTR_PERSISTENT => true) );
     }
     catch ( PDOException $e ) {
         log_error( 'MySQL initialisation fail. ' . $e->getMessage() );
@@ -23,6 +18,13 @@ function db_init() {
     }
     if ( !$db ) {
         log_error( 'MySQL initialisation fail.' );
+        return null;
+    }
+    if ( !$db->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT ) ) {
+        log_error( 'ATTR_ERRMODE fail.' );
+    }
+    if ( !$db->setAttribute( PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_BOTH ) ) {
+        log_error( 'ATTR_DEFAULT_FETCH_MODE fail.' );
     }
     return $db;
 }
