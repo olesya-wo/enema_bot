@@ -10,8 +10,7 @@ $log_error_on = true;
 $log_info_on  = true;
 
 $db_module    = 'sqlite';
-
-$mysql_host   = '127.0.0.1';
-$mysql_db     = 'test';
-$mysql_user   = 'root';
-$mysql_pass   = '';
+$db_host      = '127.0.0.1';
+$db_name      = 'test';
+$db_user      = 'root';
+$db_pass      = '';

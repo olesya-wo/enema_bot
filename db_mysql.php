@@ -7,18 +7,18 @@ $increment = 'AUTO_INCREMENT';
 $suff      = 'ENGINE=InnoDB CHARACTER SET=utf8mb4';
 
 function db_init() {
-    global $mysql_host, $mysql_db, $mysql_user, $mysql_pass;
-    $dsn  = "mysql:host=$mysql_host;dbname=$mysql_db";
+    global $db_host, $db_name, $db_user, $db_pass;
+    $dsn  = "mysql:host=$db_host;dbname=$db_name";
     $opt  = [ PDO::ATTR_ERRMODE            => PDO::ERRMODE_SILENT, // Только установка кодов ошибок
               PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_BOTH,     // Выборка в ассоциативный и нумерованный массив
               PDO::ATTR_PERSISTENT         => true                 // Не закрывать соединение после каждого запроса
             ];
     $db = null;
     try {
-        $db = new PDO( $dsn, $mysql_user, $mysql_pass );
+        $db = new PDO( $dsn, $db_user, $db_pass );
     }
     catch ( PDOException $e ) {
-        log_error( 'MySQL initialisation fail. ' . $e );
+        log_error( 'MySQL initialisation fail. ' . $e->getMessage() );
         return null;
     }
     return $db;
