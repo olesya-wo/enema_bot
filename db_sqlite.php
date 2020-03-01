@@ -17,6 +17,10 @@ function db_init() {
     return $db;
 }
 
+function db_close( $db ) {
+    $db->close();
+}
+
 function db_last_error( $db ) { return $db ? $db->lastErrorMsg() : 'No DB given'; }
 
 function db_last_insert_id( $db ) { return $db->lastInsertRowID(); }

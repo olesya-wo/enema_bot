@@ -299,10 +299,3 @@ function db_update_media_stack( $db, $user_id, $type, $file ) {
     $stmt->bindValue( ':file',      $file,    DB_TYPE_STR );
     return $stmt->execute();
 }
-
-/*
-Закрытие соединения с БД
-*/
-function db_close( $db ) {
-    $db->close();
-}

@@ -15,14 +15,19 @@ function db_init() {
             ];
     $db = null;
     try {
-        $db = new PDO( $dsn, $db_user, $db_pass );
+        $db = new PDO( $dsn, $db_user, $db_pass, $opt );
     }
     catch ( PDOException $e ) {
         log_error( 'MySQL initialisation fail. ' . $e->getMessage() );
         return null;
     }
+    if ( !$db ) {
+        log_error( 'MySQL initialisation fail.' );
+    }
     return $db;
 }
+
+function db_close( $db ) {}
 
 function db_last_error( $db ) { return $db ? ( $db->errorInfo()[0] . ': ' . $db->errorInfo()[2] ) : 'No DB given'; }
 
