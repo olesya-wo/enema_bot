@@ -626,6 +626,21 @@ function update_stack( $db, $user_id, $data ) {
     }
     return 0;
 }
+// Проверка и получение кода языка
+function get_lang_from_data( $block ) {
+    global $raw_inp;
+    if ( property_exists( $block, 'from' ) and isset( $block->{'from'} ) ) {
+        if ( property_exists( $block->{'from'}, 'language_code' ) and isset( $block->{'from'}->{'language_code'} ) ) {
+            return $block->{'from'}->{'language_code'};
+        }
+        else {
+            log_error( 'LANG_CODE_INVALID: ' . $raw_inp );
+        }
+    }
+    else {
+        log_error( 'LANG_FROM_INVALID: ' . $raw_inp );
+    }
+}
 
 // Подключаем обработчики команд
 require_once( 'handlers.php' );
@@ -641,7 +656,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
     if ( property_exists( $data, 'message' ) and isset( $data->{'message'} ) ) {
         $chat_id = $data->{'message'}->{'chat'}->{'id'};
         $from_id = $data->{'message'}->{'from'}->{'id'};
-        load_translation( $data->{'message'}->{'from'}->{'language_code'} );
+        load_translation( get_lang_from_data( $data->{'message'} ) );
         $txt     = property_exists( $data->{'message'}, 'text' )    ? $data->{'message'}->{'text'}    : null;
         $caption = property_exists( $data->{'message'}, 'caption' ) ? $data->{'message'}->{'caption'} : null;
         if ( $txt == null and $caption != null ) { $txt = $caption; }
@@ -702,7 +717,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
         $query_id = $data->{'callback_query'}->{'id'};
         $user_id  = $data->{'callback_query'}->{'from'}->{'id'};
         $btn_data = $data->{'callback_query'}->{'data'};
-        load_translation( $data->{'callback_query'}->{'from'}->{'language_code'} );
+        load_translation( get_lang_from_data( $data->{'callback_query'} ) );
         $inline   = false;
         $chat_id  = 0;
         if ( property_exists( $data->{'callback_query'}, 'inline_message_id' ) ) {
@@ -729,13 +744,19 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
         // После голоса надо обновить клавиатуру
         $poll = db_get_poll( $db, $poll_id );
         if ( $poll != -1 and $poll != 0 ) {
-            $keyboard = build_keyboard( $db, $poll );
-            if ( $inline ) {
-                call_api_method( 'editMessageReplyMarkup', array( 'inline_message_id' => $message_id, 'reply_markup' => json_encode( $keyboard ) ) );
+            $new_keyboard = json_encode( build_keyboard( $db, $poll ) );
+            $old_keyboard = json_encode( $data->{'callback_query'}->{'message'}->{'reply_markup'} );
+            if ( $new_keyboard != $old_keyboard ) {
+                if ( $inline ) {
+                    call_api_method( 'editMessageReplyMarkup', array( 'inline_message_id' => $message_id, 'reply_markup' => $new_keyboard ) );
+                }
+                else {
+                    call_api_method( 'editMessageReplyMarkup', array( 'chat_id' => $chat_id, 'message_id' => $message_id, 'reply_markup' => $new_keyboard ) );
+                }
             }
-            else {
-                call_api_method( 'editMessageReplyMarkup', array( 'chat_id' => $chat_id, 'message_id' => $message_id, 'reply_markup' => json_encode( $keyboard ) ) );
-            }
+        }
+        else {
+            log_error( 'Poll not found: ' . $poll_id );
         }
         db_close( $db );
     }
@@ -744,6 +765,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
     // else if ( property_exists( $data, 'channel_post' ) and isset( $data->{'channel_post'} ) ) {
     //     $chat_id = $data->{'channel_post'}->{'chat'}->{'id'};
     //     $txt     = $data->{'channel_post'}->{'text'};
+    //     load_translation( get_lang_from_data( $data->{'channel_post'} ) );
     //     if ( mb_substr( mb_strtolower( $txt ), 0, mb_strlen( '/publish' ) ) == '/publish' ) {
     //         $db = db_init();
     //         $id = get_id_argument( $db, $chat_id, trim( mb_substr( $txt, mb_strlen( '/publish' ) ) ) );
@@ -758,7 +780,7 @@ if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
     else if ( property_exists( $data, 'inline_query' ) and isset( $data->{'inline_query'} ) ) {
         $query_id = $data->{'inline_query'}->{'id'};
         $user_id  = $data->{'inline_query'}->{'from'}->{'id'};
-        load_translation( $data->{'inline_query'}->{'from'}->{'language_code'} );
+        load_translation( get_lang_from_data( $data->{'inline_query'} ) );
         get_list_inline( $query_id, $user_id );
     }
 }
