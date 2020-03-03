@@ -42,6 +42,6 @@ function tr( $ID ) {
     global $en_strings;
     if ( $tr_strings && property_exists( $tr_strings, $ID ) ) { return $tr_strings->{ $ID }; }
     if ( $en_strings && property_exists( $en_strings, $ID ) ) { return $en_strings->{ $ID }; }
-    log_error( $ID );
+    logger( $ID );
     return $ID;
 }

@@ -19,12 +19,12 @@ function call_api_method( $method, $params ) {
     );
     $content = file_get_contents( 'https://api.telegram.org/bot' . $token . '/' . $method, false, stream_context_create( $opts ) );
     if ( !$content ) {
-        log_error( 'Empty call_api_method response: ' . $method );
+        logger( 'Empty call_api_method response: ' . $method );
         return;
     }
     $data = json_decode( $content );
     if ( $data->{'ok'} !== true ) {
-        log_error( 'call_api_method:' . $method . ' fail: ' . $content );
+        logger( 'call_api_method:' . $method . ' fail: ' . $content );
     }
     return $content;
 }

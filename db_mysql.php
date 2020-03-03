@@ -13,18 +13,18 @@ function db_init() {
         $db = new PDO( "mysql:host=$db_host;dbname=$db_name", $db_user, $db_pass, array( PDO::ATTR_PERSISTENT => true) );
     }
     catch ( PDOException $e ) {
-        log_error( 'MySQL initialisation fail. ' . $e->getMessage() );
+        logger( 'MySQL initialisation fail. ' . $e->getMessage() );
         return null;
     }
     if ( !$db ) {
-        log_error( 'MySQL initialisation fail.' );
+        logger( 'MySQL initialisation fail.' );
         return null;
     }
     if ( !$db->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT ) ) {
-        log_error( 'ATTR_ERRMODE fail.' );
+        logger( 'ATTR_ERRMODE fail.' );
     }
     if ( !$db->setAttribute( PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_BOTH ) ) {
-        log_error( 'ATTR_DEFAULT_FETCH_MODE fail.' );
+        logger( 'ATTR_DEFAULT_FETCH_MODE fail.' );
     }
     return $db;
 }

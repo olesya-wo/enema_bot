@@ -86,7 +86,7 @@ if ( $clean > 0 or $deleted > 0 ) {
     }
 }
 else {
-    log_info( 'db_cleaner ok' );
+    logger( 'db_cleaner ok' );
 }
 
 db_close( $db );
